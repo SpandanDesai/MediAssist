@@ -50,6 +50,8 @@ export interface ChatResponse extends HealthAnalysis {
 }
 
 export interface ImageAnalysis extends HealthAnalysis {
+  conversation_id?: string;
+  response: string;
   description?: string;
   visible_abnormalities?: string[];
   severity?: string;

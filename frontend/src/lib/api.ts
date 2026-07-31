@@ -105,9 +105,10 @@ function normalizeConversation(raw: Record<string, unknown>): Conversation {
   const messages = Array.isArray(raw.messages)
     ? raw.messages.map((message, index) => {
         const item = message as Record<string, unknown>;
+        const role: "user" | "assistant" = item.role === "assistant" ? "assistant" : "user";
         return {
           id: String(item.id || index),
-          role: item.role === "assistant" ? "assistant" : "user",
+          role,
           content: String(item.content || item.message || ""),
           created_at: String(item.created_at || item.timestamp || new Date().toISOString()),
           analysis: item.analysis ? normalizeChat(item as Record<string, unknown>) : undefined,
@@ -233,6 +234,45 @@ export const hospitalApi = {
 export const reportApi = {
   async generate(conversation_id?: string) {
     return api.post("/api/reports", { conversation_id }, { responseType: "blob" });
+  },
+  async list() {
+    const response = await api.get<unknown>("/api/reports");
+    const raw = unwrap(response.data) as unknown;
+    const list = Array.isArray(raw) ? raw : (raw as { reports?: unknown[] })?.reports || [];
+    return list
+      .filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object"))
+      .map((item) => ({
+        id: String(item.id || item._id || ""),
+        title: String(item.title || "Medical report"),
+        created_at: String(item.created_at || new Date().toISOString()),
+        conversation_id: item.conversation_id ? String(item.conversation_id) : undefined,
+      }));
+  },
+  async download(id: string) {
+    return api.get(`/api/reports/${encodeURIComponent(id)}/download`, { responseType: "blob" });
+  },
+};
+
+export const assessmentApi = {
+  async run(payload: {
+    smoking: string;
+    alcohol: string;
+    exercise: string;
+    diet: string;
+    sleep: string;
+    stress: string;
+  }) {
+    const response = await api.post<Record<string, unknown>>("/api/assessment", payload);
+    const raw = unwrap(response.data) as Record<string, unknown>;
+    return {
+      risk_score: Number(raw.risk_score ?? 0),
+      risk_level: String(raw.risk_level || "moderate"),
+      suggestions: Array.isArray(raw.suggestions) ? raw.suggestions.filter((item): item is string => typeof item === "string") : [],
+      preventive_tips: Array.isArray(raw.preventive_tips)
+        ? raw.preventive_tips.filter((item): item is string => typeof item === "string")
+        : [],
+      disclaimer: typeof raw.disclaimer === "string" ? raw.disclaimer : undefined,
+    };
   },
 };
 
