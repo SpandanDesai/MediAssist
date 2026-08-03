@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { authApi, profileApi, TOKEN_KEY } from "../lib/api";
+import { authApi, profileApi, TOKEN_KEY, api } from "../lib/api";
 import type { User } from "../types";
 
 const USER_KEY = "mediassist.user";
@@ -15,18 +15,16 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function readStoredUser() {
-  try {
-    const value = localStorage.getItem(USER_KEY);
-    return value ? (JSON.parse(value) as User) : null;
-  } catch {
-    return null;
-  }
-}
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(readStoredUser);
-  const [isLoading, setIsLoading] = useState(Boolean(localStorage.getItem(TOKEN_KEY)));
+  // Never treat a cached localStorage user as logged-in until the API verifies the token.
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const clearSession = useCallback(() => {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+    setUser(null);
+  }, []);
 
   const persistUser = useCallback((nextUser: User | null) => {
     setUser(nextUser);
@@ -35,18 +33,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!localStorage.getItem(TOKEN_KEY)) {
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) {
+      localStorage.removeItem(USER_KEY);
       setIsLoading(false);
       return;
     }
+
     profileApi
       .get()
-      .then(persistUser)
+      .then((profile) => persistUser(profile))
       .catch(() => {
-        // Preserve the locally cached identity when the API is temporarily unavailable.
+        // Token invalid, expired, or API unreachable — require email/password again.
+        clearSession();
       })
       .finally(() => setIsLoading(false));
-  }, [persistUser]);
+  }, [clearSession, persistUser]);
+
+  useEffect(() => {
+    const interceptor = api.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (error?.response?.status === 401) {
+          clearSession();
+        }
+        return Promise.reject(error);
+      },
+    );
+    return () => api.interceptors.response.eject(interceptor);
+  }, [clearSession]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -63,12 +78,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         persistUser(result.user);
       },
       logout: () => {
-        localStorage.removeItem(TOKEN_KEY);
-        persistUser(null);
+        clearSession();
       },
       updateUser: persistUser,
     }),
-    [isLoading, persistUser, user],
+    [clearSession, isLoading, persistUser, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

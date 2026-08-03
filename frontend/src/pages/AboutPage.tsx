@@ -8,7 +8,10 @@ export function AboutPage() {
     <div className="min-h-screen bg-white text-slate-900 dark:bg-slate-950 dark:text-white">
       <header className="mx-auto flex h-20 max-w-4xl items-center justify-between px-5">
         <Link to="/" className="flex items-center gap-2 font-bold"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-500 text-white"><HeartPulse className="h-4 w-4" /></span>MediAssist AI</Link>
-        <Link to="/signup"><Button size="sm">Get started</Button></Link>
+        <div className="flex items-center gap-2">
+          <Link to="/login"><Button variant="outline" size="sm">Log in</Button></Link>
+          <Link to="/signup"><Button size="sm">Get started</Button></Link>
+        </div>
       </header>
       <main className="mx-auto max-w-4xl px-5 pb-16">
         <Link to="/" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-sky-600"><ArrowLeft className="h-4 w-4" />Back</Link>

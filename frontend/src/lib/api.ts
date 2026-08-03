@@ -18,7 +18,7 @@ const TOKEN_KEY = "mediassist.access_token";
 
 export const api = axios.create({
   baseURL,
-  timeout: 30000,
+  timeout: 120000,
 });
 
 api.interceptors.request.use((config) => {

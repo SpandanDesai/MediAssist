@@ -1,97 +1,308 @@
-# MediAssist AI
+# 🩺 MediAssist AI
 
-MediAssist AI is a multimodal healthcare-information assistant built with a React/Vite frontend and a FastAPI backend. It supports text consultations, voice and image workflows, health history, nearby-care discovery, and downloadable reports.
+> **An AI-powered multimodal healthcare information assistant built with React, FastAPI, Google Gemini, and MongoDB.**
 
-> **Safety notice:** MediAssist provides educational information only. It must not diagnose, replace a clinician, or delay emergency care. Emergency signals must receive an immediate emergency-care recommendation.
+MediAssist AI helps users understand symptoms through AI-powered conversations while providing image analysis, voice interaction, nearby hospital discovery, medical history tracking, and downloadable health reports.
 
-## Architecture
+> **⚠️ Medical Disclaimer**
+>
+> MediAssist AI is intended for **educational and informational purposes only**. It does **not** diagnose medical conditions, replace licensed healthcare professionals, or delay emergency medical treatment. If symptoms indicate a medical emergency, seek immediate professional care.
+
+---
+
+# ✨ Features
+
+- 💬 AI Medical Chat Assistant (Google Gemini)
+- 🎙️ Voice-based Health Consultation
+- 🖼️ Medical Image Analysis
+- 📍 Nearby Hospitals using Google Maps
+- 👤 Secure User Authentication (JWT)
+- 📜 Conversation & Medical History
+- 📄 Downloadable Medical Reports
+- 🌙 Responsive UI with Dark Mode
+- 🔒 Secure API & Input Validation
+
+---
+
+# 🏗️ Tech Stack
+
+## Frontend
+
+- React
+- TypeScript
+- Vite
+- Tailwind CSS
+- Axios
+
+## Backend
+
+- FastAPI
+- Python
+- JWT Authentication
+- Pydantic
+- Google Gemini API
+
+## Database
+
+- MongoDB Atlas
+
+---
+
+# 📂 Project Structure
 
 ```text
-frontend/   React + TypeScript + Vite + Tailwind (browser UI)
-    | HTTP / multipart uploads, JWT bearer token
-backend/    FastAPI + Pydantic (auth, AI orchestration, reports, hospitals)
-    | MongoDB driver
-MongoDB     Users, conversations, uploaded-image metadata, reports
+MediAssist/
+│
+├── frontend/
+│   ├── src/
+│   ├── public/
+│   └── package.json
+│
+├── backend/
+│   ├── app/
+│   │   ├── routes/
+│   │   ├── services/
+│   │   ├── models/
+│   │   ├── db/
+│   │   └── core/
+│   ├── requirements.txt
+│   └── .env.example
+│
+└── README.md
 ```
 
-The frontend reads its API origin from `VITE_API_BASE_URL` (default: `http://localhost:8000`). The backend exposes routes below `/api` and enables CORS for the configured frontend origins.
+---
 
-## Prerequisites
+# ⚙️ Prerequisites
 
-- Node.js 20 or newer
-- Python 3.11 or newer
-- MongoDB Atlas connection string, or local MongoDB 7
-- An OpenAI API key for production AI, speech, and vision features
+Install the following before running the project:
 
-## Local development
+- Node.js 20+
+- Python 3.11+
+- MongoDB Atlas (or MongoDB Community Edition)
+- Google Gemini API Key
 
-Create local environment files from the component examples:
+---
 
-```powershell
-Copy-Item frontend\.env.example frontend\.env
-Copy-Item backend\.env.example backend\.env
+# 🔑 Environment Variables
+
+## Backend (`backend/.env`)
+
+```env
+MONGODB_URI=your_mongodb_connection_string
+MONGODB_DATABASE=mediassist
+GEMINI_API_KEY=your_gemini_api_key
+SECRET_KEY=your_long_random_secret
+FRONTEND_ORIGINS=http://localhost:5173
 ```
 
-The backend `.env` should set `MONGODB_URI`, `MONGODB_DATABASE`, `OPENAI_API_KEY`, `SECRET_KEY`, and `FRONTEND_ORIGINS`. Keep `SECRET_KEY` long and random, and never commit either `.env` file. In development, the backend can fall back to an in-memory data store when MongoDB is unavailable and to a safety-first rules engine when OpenAI is not configured; use real services before production deployment.
+## Frontend (`frontend/.env`)
 
-Start MongoDB locally or point the backend at MongoDB Atlas, then open two terminals.
-
-```powershell
-# Terminal 1: FastAPI
-Set-Location backend
-py -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-```powershell
-# Terminal 2: React/Vite
-Set-Location frontend
-npm install
-npm run dev
-```
-
-Visit `http://localhost:5173` after both services are running.
-
-## Docker development
-
-The included Compose setup starts MongoDB, the FastAPI service, and a production-style static frontend.
-
-```powershell
-docker compose up --build
-```
-
-Before using real AI features, create a root `.env` file with the real secrets, for example:
-
-```dotenv
-OPENAI_API_KEY=your_key
-SECRET_KEY=replace-with-a-long-random-secret
+```env
 VITE_API_BASE_URL=http://localhost:8000
 ```
 
-The Compose frontend is available at `http://localhost:5173`, the backend at `http://localhost:8000`, and MongoDB at `localhost:27017`. Stop services with `docker compose down`; add `-v` only if you intentionally want to erase the local database volume.
+> **Never commit `.env` files to GitHub.**
 
-## Deployment
+---
 
-### Vercel (frontend)
+# 🚀 Running the Backend
 
-- Set the Vercel project root directory to `frontend`.
-- Build command: `npm run build`; output directory: `dist`.
-- Add `VITE_API_BASE_URL=https://your-render-service.onrender.com` as a production environment variable, then redeploy so Vite embeds the value.
+```bash
+cd backend
 
-### Render (backend)
+python -m venv .venv
+```
 
-- Set the Render service root directory to `backend`.
-- Use either the included Dockerfile or build with `pip install -r requirements.txt` and start with `uvicorn app.main:app --host 0.0.0.0 --port $PORT`.
-- Set `OPENAI_API_KEY`, `MONGODB_URI`, `MONGODB_DATABASE`, `SECRET_KEY`, and `FRONTEND_ORIGINS` (including the Vercel URL).
-- Configure MongoDB Atlas network access appropriately for Render and keep all credentials in Render environment variables.
+### Windows
 
-## Core verification checklist
+```bash
+.venv\Scripts\activate
+```
 
-1. Sign up, sign in, refresh, and verify protected profile/history requests send a JWT bearer token.
-2. Confirm every text, voice, and image response includes a non-diagnostic disclaimer, confidence/urgency framing, and deterministic emergency escalation.
-3. Verify image/audio type and size validation, error states, and rate limits before testing third-party APIs.
-4. Test geolocation denial, no nearby-hospital results, network failure, mobile layout, and dark mode.
-5. Generate a report and verify that it contains the user/date, symptoms or conversation, possible conditions, recommendations, and disclaimer.
+### Linux / macOS
+
+```bash
+source .venv/bin/activate
+```
+
+Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+Run the server
+
+```bash
+uvicorn app.main:app --reload
+```
+
+Backend runs at:
+
+```
+http://localhost:8000
+```
+
+---
+
+# 💻 Running the Frontend
+
+```bash
+cd frontend
+
+npm install
+
+npm run dev
+```
+
+Frontend runs at:
+
+```
+http://localhost:5173
+```
+
+---
+
+# 🌐 API Overview
+
+| Feature | Endpoint |
+|----------|----------|
+| Authentication | `/api/auth` |
+| Medical Chat | `/api/chat` |
+| Image Analysis | `/api/image` |
+| Voice Consultation | `/api/voice` |
+| Medical History | `/api/history` |
+| Reports | `/api/reports` |
+| Nearby Hospitals | `/api/hospitals` |
+| User Profile | `/api/profile` |
+
+---
+
+# 🚀 Deployment
+
+## Frontend (Vercel)
+
+Project Root
+
+```
+frontend
+```
+
+Build Command
+
+```
+npm run build
+```
+
+Output Directory
+
+```
+dist
+```
+
+Environment Variable
+
+```
+VITE_API_BASE_URL=https://your-backend-url.onrender.com
+```
+
+---
+
+## Backend (Render)
+
+Project Root
+
+```
+backend
+```
+
+Build Command
+
+```
+pip install -r requirements.txt
+```
+
+Start Command
+
+```
+uvicorn app.main:app --host 0.0.0.0 --port $PORT
+```
+
+Environment Variables
+
+```env
+MONGODB_URI=
+MONGODB_DATABASE=
+GEMINI_API_KEY=
+SECRET_KEY=
+FRONTEND_ORIGINS=
+```
+
+---
+
+# ✅ Testing Checklist
+
+- User Registration & Login
+- JWT Authentication
+- AI Chat Responses
+- Voice Consultation
+- Medical Image Analysis
+- Hospital Search
+- Conversation History
+- Report Generation
+- Mobile Responsiveness
+- Dark Mode
+- Error Handling
+
+---
+
+# 🔒 Security
+
+- JWT Authentication
+- Password Hashing
+- Input Validation
+- Protected Routes
+- Environment Variable Management
+- CORS Configuration
+
+---
+
+# 📸 Screenshots
+
+Add screenshots here.
+
+```
+Home Page
+
+AI Chat
+
+Medical Image Analysis
+
+Voice Consultation
+
+Hospital Finder
+
+Medical Reports
+```
+
+---
+
+# 👨‍💻 Authors
+
+### Sushant Kumar
+Computer Science Engineering (IoT, Blockchain & Cyber Security)
+
+GitHub: https://github.com/sushantkumarkhobian-lab
+
+---
+
+### Spandan Desai
+Computer Science Engineering (IoT, Blockchain & Cyber Security)
+
+GitHub: https://github.com/SpandanDesai
+---
+
+## ⭐ Support
+
+If you found this project useful, consider giving it a **⭐ Star** on GitHub!

@@ -1,9 +1,11 @@
-"""OpenAI-backed consultation, transcription, TTS, and vision services."""
+"""Gemini-backed consultation, transcription, TTS helpers, and vision services.
+
+Uses the Dr. Homie–compatible GeminiMedicalAgent for chat, image, and voice.
+Falls back to the local rules engine when GEMINI_API_KEY is missing.
+"""
 
 from __future__ import annotations
 
-import base64
-import json
 import logging
 from typing import Any
 
@@ -11,49 +13,10 @@ from app.core.config import get_settings
 from app.schemas.chat import ImageAnalysisResult, VoiceResponse
 from app.schemas.common import DISCLAIMER, ConsultationResult, PossibleCondition
 from app.services.emergency import detect_emergency, emergency_consultation
-from app.services.rules_engine import analyze_image_notes, analyze_symptoms, extract_json_object
+from app.services.gemini_agent import VISION_EXTRA, VOICE_EXTRA, get_gemini_agent
+from app.services.rules_engine import analyze_image_notes, analyze_symptoms
 
 logger = logging.getLogger(__name__)
-
-SYSTEM_PROMPT = """You are MediAssist AI, a cautious healthcare information assistant.
-Rules:
-- Never claim a confirmed medical diagnosis or certainty.
-- Provide educational information only.
-- Estimate possible conditions with confidence percentages that sum near 100.
-- Explain reasoning briefly.
-- Estimate urgency as one of: low, medium, high, emergency.
-- Ask follow-up questions when useful.
-- Recommend home care only when appropriate, and professional care when symptoms warrant it.
-- Always include a clear medical disclaimer.
-- If emergency symptoms are present, set emergency=true and urgency=emergency.
-Return ONLY valid JSON with keys:
-response, possible_conditions (array of {name, confidence, description}), urgency,
-recommendation, follow_up_questions (array of strings), disclaimer, emergency (boolean).
-"""
-
-VISION_PROMPT = """You are MediAssist AI analyzing a medical-related photo for educational purposes only.
-Never claim certainty or a confirmed diagnosis.
-Describe visible findings cautiously, list possible conditions with confidence percentages,
-estimate severity/urgency, and give advice. Prefer dermatologist review when uncertain.
-If severe findings are possible, recommend emergency/urgent care.
-Return ONLY valid JSON with keys:
-response, description, visible_abnormalities (string array), possible_conditions
-({name, confidence, description}), urgency, severity, recommendation, advice,
-follow_up_questions, disclaimer, emergency.
-"""
-
-
-def _client():
-    settings = get_settings()
-    if not settings.openai_api_key:
-        return None
-    try:
-        from openai import OpenAI
-
-        return OpenAI(api_key=settings.openai_api_key)
-    except Exception as exc:  # pragma: no cover - import/runtime guard
-        logger.warning("OpenAI client unavailable: %s", exc)
-        return None
 
 
 def _conditions_from_raw(raw: Any) -> list[PossibleCondition]:
@@ -88,8 +51,15 @@ def _consultation_from_dict(data: dict[str, Any], conversation_id: str | None) -
     if urgency not in {"low", "medium", "high", "emergency"}:
         urgency = "medium"
     return ConsultationResult(
-        response=str(data.get("response") or data.get("message") or "Here is cautious educational guidance."),
-        possible_conditions=_conditions_from_raw(data.get("possible_conditions") or data.get("conditions")),
+        response=str(
+            data.get("response")
+            or data.get("user_message")
+            or data.get("message")
+            or "Here is cautious educational guidance."
+        ),
+        possible_conditions=_conditions_from_raw(
+            data.get("possible_conditions") or data.get("top_conditions") or data.get("conditions")
+        ),
         urgency=urgency,  # type: ignore[arg-type]
         recommendation=str(data["recommendation"]) if data.get("recommendation") else None,
         follow_up_questions=[str(q) for q in (data.get("follow_up_questions") or []) if q],
@@ -97,6 +67,10 @@ def _consultation_from_dict(data: dict[str, Any], conversation_id: str | None) -
         emergency=bool(data.get("emergency")) or urgency == "emergency",
         conversation_id=conversation_id,
     )
+
+
+def _gemini_ready() -> bool:
+    return get_gemini_agent().configured
 
 
 async def consult_text(
@@ -110,39 +84,22 @@ async def consult_text(
     if emergency:
         return emergency_consultation(emergency, conversation_id)
 
-    client = _client()
-    settings = get_settings()
-    if client is None:
+    if not _gemini_ready():
         return analyze_symptoms(message, conversation_id, profile_context)
 
     user_content = message
     if profile_context:
         user_content = f"Optional patient profile context:\n{profile_context}\n\nUser message:\n{message}"
 
-    messages: list[dict[str, str]] = [{"role": "system", "content": SYSTEM_PROMPT}]
-    for item in history or []:
-        role = item.get("role")
-        content = item.get("content")
-        if role in {"user", "assistant"} and content:
-            messages.append({"role": role, "content": content})
-    messages.append({"role": "user", "content": user_content})
-
     try:
-        completion = client.chat.completions.create(
-            model=settings.openai_chat_model,
-            messages=messages,
-            temperature=0.3,
-            response_format={"type": "json_object"},
-        )
-        content = completion.choices[0].message.content or "{}"
-        data = extract_json_object(content) or json.loads(content)
+        data = await get_gemini_agent().generate(user_text=user_content, history=history)
         result = _consultation_from_dict(data, conversation_id)
         if result.emergency or detect_emergency(result.response):
             category = detect_emergency(message) or detect_emergency(result.response) or "urgent symptoms"
             return emergency_consultation(category, conversation_id)
         return result
     except Exception as exc:
-        logger.exception("OpenAI chat failed: %s", exc)
+        logger.exception("Gemini chat failed: %s", exc)
         return analyze_symptoms(message, conversation_id, profile_context)
 
 
@@ -164,33 +121,18 @@ async def consult_image(
                 advice=base.recommendation,
             )
 
-    client = _client()
-    settings = get_settings()
-    if client is None:
+    if not _gemini_ready():
         return analyze_image_notes(notes, conversation_id)
 
-    encoded = base64.b64encode(image_bytes).decode("ascii")
-    data_url = f"data:{mime_type};base64,{encoded}"
     prompt = notes or "Please cautiously describe visible findings and educational possibilities."
 
     try:
-        completion = client.chat.completions.create(
-            model=settings.openai_vision_model,
-            temperature=0.2,
-            response_format={"type": "json_object"},
-            messages=[
-                {"role": "system", "content": VISION_PROMPT},
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": {"url": data_url}},
-                    ],
-                },
-            ],
+        data = await get_gemini_agent().generate(
+            user_text=prompt,
+            image_bytes=image_bytes,
+            image_mime=mime_type,
+            extra_instruction=VISION_EXTRA,
         )
-        content = completion.choices[0].message.content or "{}"
-        data = extract_json_object(content) or json.loads(content)
         base = _consultation_from_dict(data, conversation_id)
         return ImageAnalysisResult(
             **base.model_dump(),
@@ -200,50 +142,95 @@ async def consult_image(
             advice=str(data.get("advice") or base.recommendation or ""),
         )
     except Exception as exc:
-        logger.exception("OpenAI vision failed: %s", exc)
+        logger.exception("Gemini vision failed: %s", exc)
         return analyze_image_notes(notes, conversation_id)
 
 
+def _guess_audio_mime(filename: str) -> str:
+    lower = (filename or "").lower()
+    if lower.endswith(".wav"):
+        return "audio/wav"
+    if lower.endswith(".mp3"):
+        return "audio/mpeg"
+    if lower.endswith(".ogg"):
+        return "audio/ogg"
+    if lower.endswith(".m4a"):
+        return "audio/mp4"
+    if lower.endswith(".webm"):
+        return "audio/webm"
+    return "audio/webm"
+
+
 async def transcribe_audio(audio_bytes: bytes, filename: str = "audio.webm") -> str:
-    client = _client()
-    settings = get_settings()
-    if client is None:
-        return "Voice consultation received. Configure OPENAI_API_KEY to enable speech-to-text."
+    """Ask Gemini to transcribe speech; used when a plain transcript is needed."""
 
-    import io
+    if not _gemini_ready():
+        return "Voice consultation received. Configure GEMINI_API_KEY to enable speech understanding."
 
-    buffer = io.BytesIO(audio_bytes)
-    buffer.name = filename
     try:
-        result = client.audio.transcriptions.create(
-            model=settings.openai_transcription_model,
-            file=buffer,
+        data = await get_gemini_agent().generate(
+            user_text=(
+                "Transcribe the attached audio as accurately as possible. "
+                "Return JSON with at least transcript set to the spoken words."
+            ),
+            audio_bytes=audio_bytes,
+            audio_mime=_guess_audio_mime(filename),
+            extra_instruction=VOICE_EXTRA,
         )
-        return getattr(result, "text", None) or str(result)
+        transcript = data.get("transcript") or data.get("response") or data.get("user_message")
+        return str(transcript or "I could not transcribe that audio clearly.")
     except Exception as exc:
-        logger.exception("Transcription failed: %s", exc)
+        logger.exception("Gemini transcription failed: %s", exc)
         return "I could not transcribe that audio clearly. Please try again or type your symptoms."
 
 
 async def synthesize_speech(text: str) -> str | None:
-    """Return a data URL with base64 audio, or None when TTS is unavailable."""
-    client = _client()
+    """Optional TTS via Gemini speech models; returns None when unavailable."""
+
     settings = get_settings()
-    if client is None:
+    agent = get_gemini_agent()
+    if not agent.configured:
         return None
+
+    # Prefer a dedicated TTS model when the key can reach it; otherwise skip audio.
+    tts_model = settings.gemini_tts_model
     try:
-        speech = client.audio.speech.create(
-            model=settings.openai_tts_model,
-            voice=settings.openai_tts_voice,
-            input=text[:4000],
-            response_format="mp3",
-        )
-        audio_bytes = speech.content if hasattr(speech, "content") else bytes(speech.read())
-        encoded = base64.b64encode(audio_bytes).decode("ascii")
-        return f"data:audio/mpeg;base64,{encoded}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/{tts_model}:generateContent"
+        payload = {
+            "contents": [{"role": "user", "parts": [{"text": text[:4000]}]}],
+            "generationConfig": {
+                "response_modalities": ["AUDIO"],
+                "speech_config": {
+                    "voice_config": {
+                        "prebuilt_voice_config": {"voice_name": settings.gemini_tts_voice}
+                    }
+                },
+            },
+        }
+        import ssl
+
+        import httpx
+
+        try:
+            verify: ssl.SSLContext | bool = ssl.create_default_context()
+        except Exception:
+            verify = True
+        async with httpx.AsyncClient(timeout=60.0, verify=verify) as client:
+            response = await client.post(url, params={"key": agent.api_key}, json=payload)
+            if not response.is_success:
+                logger.warning("Gemini TTS unavailable: %s %s", response.status_code, response.text[:200])
+                return None
+            data = response.json()
+            parts = ((((data.get("candidates") or [{}])[0].get("content") or {}).get("parts")) or [])
+            for part in parts:
+                inline = part.get("inlineData") or part.get("inline_data") or {}
+                audio_b64 = inline.get("data")
+                mime = inline.get("mimeType") or inline.get("mime_type") or "audio/mpeg"
+                if audio_b64:
+                    return f"data:{mime};base64,{audio_b64}"
     except Exception as exc:
-        logger.warning("TTS unavailable: %s", exc)
-        return None
+        logger.warning("Gemini TTS unavailable: %s", exc)
+    return None
 
 
 async def consult_voice(
@@ -254,15 +241,59 @@ async def consult_voice(
     history: list[dict[str, str]] | None = None,
     profile_context: str | None = None,
 ) -> VoiceResponse:
-    transcript = await transcribe_audio(audio_bytes, filename)
-    result = await consult_text(
-        transcript,
-        conversation_id=conversation_id,
-        history=history,
-        profile_context=profile_context,
+    """Run voice consult through the same Homie Gemini agent (audio + optional profile)."""
+
+    if not _gemini_ready():
+        transcript = "Voice consultation received. Configure GEMINI_API_KEY to enable speech understanding."
+        result = analyze_symptoms(transcript, conversation_id, profile_context)
+        return VoiceResponse(**result.model_dump(), transcript=transcript, audio_url=None)
+
+    prompt = (
+        "Please listen to this voice note, transcribe what the user said, "
+        "and provide educational medical guidance in the required JSON format."
     )
-    spoken = result.response
-    if result.recommendation:
-        spoken = f"{result.response}\n\nRecommendation: {result.recommendation}"
-    audio_url = await synthesize_speech(spoken)
-    return VoiceResponse(**result.model_dump(), transcript=transcript, audio_url=audio_url)
+    if profile_context:
+        prompt = f"Optional patient profile context:\n{profile_context}\n\n{prompt}"
+
+    try:
+        data = await get_gemini_agent().generate(
+            user_text=prompt,
+            history=history,
+            audio_bytes=audio_bytes,
+            audio_mime=_guess_audio_mime(filename),
+            extra_instruction=VOICE_EXTRA,
+        )
+        result = _consultation_from_dict(data, conversation_id)
+        transcript = str(data.get("transcript") or "Voice note received.")
+        if detect_emergency(transcript) or result.emergency or detect_emergency(result.response):
+            category = (
+                detect_emergency(transcript)
+                or detect_emergency(result.response)
+                or "urgent symptoms"
+            )
+            emergency = emergency_consultation(category, conversation_id)
+            spoken = emergency.response
+            if emergency.recommendation:
+                spoken = f"{emergency.response}\n\nRecommendation: {emergency.recommendation}"
+            audio_url = await synthesize_speech(spoken)
+            return VoiceResponse(**emergency.model_dump(), transcript=transcript, audio_url=audio_url)
+
+        spoken = result.response
+        if result.recommendation:
+            spoken = f"{result.response}\n\nRecommendation: {result.recommendation}"
+        audio_url = await synthesize_speech(spoken)
+        return VoiceResponse(**result.model_dump(), transcript=transcript, audio_url=audio_url)
+    except Exception as exc:
+        logger.exception("Gemini voice consult failed: %s", exc)
+        transcript = await transcribe_audio(audio_bytes, filename)
+        result = await consult_text(
+            transcript,
+            conversation_id=conversation_id,
+            history=history,
+            profile_context=profile_context,
+        )
+        spoken = result.response
+        if result.recommendation:
+            spoken = f"{result.response}\n\nRecommendation: {result.recommendation}"
+        audio_url = await synthesize_speech(spoken)
+        return VoiceResponse(**result.model_dump(), transcript=transcript, audio_url=audio_url)
