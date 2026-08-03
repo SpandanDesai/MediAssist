@@ -21,7 +21,7 @@ services:
       UVICORN_APP: ${UVICORN_APP:-app.main:app}
       MONGODB_URI: ${MONGODB_URI:-mongodb://mongo:27017/mediassist}
       MONGODB_DATABASE: ${MONGODB_DATABASE:-mediassist}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       SECRET_KEY: ${SECRET_KEY:-change-this-local-development-secret}
       FRONTEND_ORIGINS: ${FRONTEND_ORIGINS:-http://localhost:5173}
     ports:

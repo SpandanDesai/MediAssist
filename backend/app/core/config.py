@@ -28,6 +28,12 @@ class Settings(BaseSettings):
     mongodb_uri: str | None = None
     mongodb_database: str = "mediassist"
 
+    # Dr. Homie–compatible Gemini agent (used for chat, voice, and image analysis)
+    gemini_api_key: str | None = None
+    gemini_tts_model: str = "models/gemini-2.5-flash-preview-tts"
+    gemini_tts_voice: str = "Kore"
+
+    # Legacy OpenAI settings kept for compatibility; AI features now use Gemini.
     openai_api_key: str | None = None
     openai_chat_model: str = "gpt-4.1-mini"
     openai_vision_model: str = "gpt-4.1-mini"

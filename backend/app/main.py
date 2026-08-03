@@ -21,9 +21,9 @@ async def lifespan(_: FastAPI):
     settings = get_settings()
     await database.connect()
     logger.info(
-        "MediAssist API ready (storage=%s, openai=%s)",
+        "MediAssist API ready (storage=%s, gemini=%s)",
         "memory" if database.using_memory else "mongodb",
-        "yes" if settings.openai_api_key else "fallback-rules",
+        "yes" if settings.gemini_api_key else "fallback-rules",
     )
     yield
     await database.disconnect()
