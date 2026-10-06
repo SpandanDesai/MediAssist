@@ -13,4 +13,5 @@ class ProfileUpdateRequest(BaseModel):
     allergies: str | None = Field(default=None, max_length=2000)
     medical_history: str | None = Field(default=None, max_length=5000)
     chronic_diseases: str | None = Field(default=None, max_length=2000)
+    current_medications: str | None = Field(default=None, max_length=2000)
     emergency_contact: str | None = Field(default=None, max_length=200)

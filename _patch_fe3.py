@@ -1,4 +1,7 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+﻿from pathlib import Path
+ROOT = Path(r"c:\Users\Spandan\Documents\GitHub\MediAssist")
+
+(ROOT / "frontend/src/pages/ChatPage.tsx").write_text(r'''import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { FileDown, Search, Send, Trash2 } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { EmergencyAlert } from "../components/EmergencyAlert";
@@ -313,3 +316,5 @@ export function ChatPage() {
     </div>
   );
 }
+''', encoding="utf-8")
+print("OK ChatPage")

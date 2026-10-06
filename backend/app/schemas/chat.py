@@ -11,6 +11,8 @@ class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=8000)
     conversation_id: str | None = None
     context: str | None = Field(default=None, max_length=4000)
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
 
 
 class ImageAnalysisResult(ConsultationResult):
@@ -35,11 +37,14 @@ class AssessmentRequest(BaseModel):
 
 
 class AssessmentResult(BaseModel):
+    id: str | None = None
     risk_score: int = Field(ge=0, le=100)
     risk_level: str
     suggestions: list[str]
     preventive_tips: list[str]
     disclaimer: str
+    created_at: str | None = None
+    chat_prompts: list[str] = Field(default_factory=list)
 
 
 class ReportRequest(BaseModel):

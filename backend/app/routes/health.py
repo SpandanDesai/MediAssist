@@ -18,7 +18,7 @@ async def health() -> dict:
         "app": settings.app_name,
         "environment": settings.environment,
         "storage": "memory" if database.using_memory else "mongodb",
+        "ai_provider": "gemini" if bool(settings.gemini_api_key) else "rules-engine-fallback",
         "gemini_configured": bool(settings.gemini_api_key),
-        "openai_configured": bool(settings.openai_api_key),
         "mongodb_error": database.connection_error,
     }

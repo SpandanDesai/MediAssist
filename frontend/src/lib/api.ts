@@ -87,9 +87,34 @@ function normalizeConditions(raw: unknown): ChatResponse["possible_conditions"] 
 
 function normalizeChat(raw: Record<string, unknown>): ChatResponse {
   const analysis = (raw.analysis || raw) as Record<string, unknown>;
+  const crisis = Array.isArray(analysis.crisis_resources)
+    ? analysis.crisis_resources
+        .filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object"))
+        .map((item) => ({
+          label: String(item.label || "Help resource"),
+          detail: String(item.detail || ""),
+          phone: typeof item.phone === "string" ? item.phone : undefined,
+          url: typeof item.url === "string" ? item.url : undefined,
+        }))
+    : [];
+  const hospitals = Array.isArray(analysis.nearest_hospitals)
+    ? analysis.nearest_hospitals
+        .filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object"))
+        .map((item) => ({
+          id: String(item.id || ""),
+          name: String(item.name || "Nearby facility"),
+          type: typeof item.type === "string" ? item.type : undefined,
+          distance_km: typeof item.distance_km === "number" ? item.distance_km : undefined,
+          address: typeof item.address === "string" ? item.address : undefined,
+          phone: typeof item.phone === "string" ? item.phone : undefined,
+          latitude: typeof item.latitude === "number" ? item.latitude : undefined,
+          longitude: typeof item.longitude === "number" ? item.longitude : undefined,
+          maps_url: typeof item.maps_url === "string" ? item.maps_url : undefined,
+        }))
+    : [];
   return {
     conversation_id: String(raw.conversation_id || raw.conversationId || "") || undefined,
-    response: String(raw.response || raw.message || raw.answer || "I’m here to help you think through your symptoms."),
+    response: String(raw.response || raw.message || raw.answer || "I'm here to help you think through your symptoms."),
     possible_conditions: normalizeConditions(analysis.possible_conditions || analysis.conditions),
     urgency: String(analysis.urgency || analysis.urgency_level || "low"),
     recommendation: typeof analysis.recommendation === "string" ? analysis.recommendation : undefined,
@@ -98,6 +123,9 @@ function normalizeChat(raw: Record<string, unknown>): ChatResponse {
       : [],
     disclaimer: typeof analysis.disclaimer === "string" ? analysis.disclaimer : undefined,
     emergency: Boolean(analysis.emergency || analysis.is_emergency),
+    emergency_category: typeof analysis.emergency_category === "string" ? analysis.emergency_category : undefined,
+    crisis_resources: crisis,
+    nearest_hospitals: hospitals,
   };
 }
 
@@ -153,7 +181,13 @@ export const profileApi = {
 };
 
 export const chatApi = {
-  async send(payload: { message: string; conversation_id?: string }) {
+  async send(payload: {
+    message: string;
+    conversation_id?: string;
+    context?: string;
+    latitude?: number;
+    longitude?: number;
+  }) {
     const response = await api.post<Record<string, unknown>>("/api/chat", payload);
     return normalizeChat(unwrap(response.data) as Record<string, unknown>);
   },
@@ -253,6 +287,23 @@ export const reportApi = {
   },
 };
 
+function normalizeAssessment(raw: Record<string, unknown>) {
+  return {
+    id: raw.id ? String(raw.id) : undefined,
+    risk_score: Number(raw.risk_score ?? 0),
+    risk_level: String(raw.risk_level || "moderate"),
+    suggestions: Array.isArray(raw.suggestions) ? raw.suggestions.filter((item): item is string => typeof item === "string") : [],
+    preventive_tips: Array.isArray(raw.preventive_tips)
+      ? raw.preventive_tips.filter((item): item is string => typeof item === "string")
+      : [],
+    disclaimer: typeof raw.disclaimer === "string" ? raw.disclaimer : undefined,
+    created_at: typeof raw.created_at === "string" ? raw.created_at : undefined,
+    chat_prompts: Array.isArray(raw.chat_prompts)
+      ? raw.chat_prompts.filter((item): item is string => typeof item === "string")
+      : [],
+  };
+}
+
 export const assessmentApi = {
   async run(payload: {
     smoking: string;
@@ -263,16 +314,15 @@ export const assessmentApi = {
     stress: string;
   }) {
     const response = await api.post<Record<string, unknown>>("/api/assessment", payload);
-    const raw = unwrap(response.data) as Record<string, unknown>;
-    return {
-      risk_score: Number(raw.risk_score ?? 0),
-      risk_level: String(raw.risk_level || "moderate"),
-      suggestions: Array.isArray(raw.suggestions) ? raw.suggestions.filter((item): item is string => typeof item === "string") : [],
-      preventive_tips: Array.isArray(raw.preventive_tips)
-        ? raw.preventive_tips.filter((item): item is string => typeof item === "string")
-        : [],
-      disclaimer: typeof raw.disclaimer === "string" ? raw.disclaimer : undefined,
-    };
+    return normalizeAssessment(unwrap(response.data) as Record<string, unknown>);
+  },
+  async history() {
+    const response = await api.get<unknown>("/api/assessment/history");
+    const raw = unwrap(response.data) as unknown;
+    const list = Array.isArray(raw) ? raw : [];
+    return list
+      .filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object"))
+      .map(normalizeAssessment);
   },
 };
 

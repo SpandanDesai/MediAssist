@@ -1,4 +1,7 @@
-import { FormEvent, useEffect, useState } from "react";
+﻿from pathlib import Path
+ROOT = Path(r"c:\Users\Spandan\Documents\GitHub\MediAssist")
+
+(ROOT / "frontend/src/pages/AssessmentPage.tsx").write_text(r'''import { FormEvent, useEffect, useState } from "react";
 import { ArrowRight, ShieldCheck } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useToast } from "../components/Toast";
@@ -163,3 +166,5 @@ export function AssessmentPage() {
     </div>
   );
 }
+''', encoding="utf-8")
+print("OK AssessmentPage")

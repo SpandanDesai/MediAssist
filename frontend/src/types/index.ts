@@ -10,6 +10,7 @@ export interface User {
   allergies?: string | null;
   medical_history?: string | null;
   chronic_diseases?: string | null;
+  current_medications?: string | null;
   emergency_contact?: string | null;
 }
 
@@ -19,6 +20,25 @@ export interface PossibleCondition {
   description?: string | null;
 }
 
+export interface CrisisResource {
+  label: string;
+  detail: string;
+  phone?: string | null;
+  url?: string | null;
+}
+
+export interface NearbyFacility {
+  id: string;
+  name: string;
+  type?: string | null;
+  distance_km?: number | null;
+  address?: string | null;
+  phone?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  maps_url?: string | null;
+}
+
 export interface HealthAnalysis {
   possible_conditions?: PossibleCondition[];
   urgency?: Urgency;
@@ -26,6 +46,9 @@ export interface HealthAnalysis {
   follow_up_questions?: string[];
   disclaimer?: string;
   emergency?: boolean;
+  emergency_category?: string;
+  crisis_resources?: CrisisResource[];
+  nearest_hospitals?: NearbyFacility[];
 }
 
 export interface ChatMessage {
@@ -73,6 +96,17 @@ export interface Hospital {
   latitude?: number;
   longitude?: number;
   is_open?: boolean;
+}
+
+export interface AssessmentResult {
+  id?: string;
+  risk_score: number;
+  risk_level: string;
+  suggestions: string[];
+  preventive_tips: string[];
+  disclaimer?: string;
+  created_at?: string;
+  chat_prompts?: string[];
 }
 
 export interface ApiErrorShape {

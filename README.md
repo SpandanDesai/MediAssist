@@ -13,14 +13,16 @@ MediAssist AI helps users understand symptoms through AI-powered conversations w
 # ✨ Features
 
 - 💬 AI Medical Chat Assistant (Google Gemini)
-- 🎙️ Voice-based Health Consultation
+- 🎙️ Voice-based Health Consultation (speech-to-text + TTS)
 - 🖼️ Medical Image Analysis
-- 📍 Nearby Hospitals using Google Maps
+- 📍 Nearby Hospitals using OpenStreetMap + browser geolocation
+- ⚠️ Emergency Symptom Detection with immediate urgent-care guidance
+- 📊 Lifestyle Health Risk Assessment
 - 👤 Secure User Authentication (JWT)
 - 📜 Conversation & Medical History
-- 📄 Downloadable Medical Reports
-- 🌙 Responsive UI with Dark Mode
-- 🔒 Secure API & Input Validation
+- 📄 Downloadable Medical Reports (PDF)
+- 🌙 Responsive UI with Dark Mode, Markdown, and typing indicators
+- 🔒 Secure API, Rate Limiting, and Input Validation
 
 ---
 
@@ -92,9 +94,16 @@ Install the following before running the project:
 MONGODB_URI=your_mongodb_connection_string
 MONGODB_DATABASE=mediassist
 GEMINI_API_KEY=your_gemini_api_key
+GEMINI_TTS_MODEL=models/gemini-2.5-flash-preview-tts
+GEMINI_TTS_VOICE=Kore
 SECRET_KEY=your_long_random_secret
 FRONTEND_ORIGINS=http://localhost:5173
 ```
+
+> `GEMINI_API_KEY` and `MONGODB_URI` are optional for local development. When
+> either service is not configured, the backend transparently falls back to an
+> in-memory data store and a safety-first educational rules engine so the UI can
+> run immediately. Configure real services before production.
 
 ## Frontend (`frontend/.env`)
 
@@ -173,9 +182,29 @@ http://localhost:5173
 | Image Analysis | `/api/image` |
 | Voice Consultation | `/api/voice` |
 | Medical History | `/api/history` |
+| Health Risk Assessment | `/api/assessment` |
 | Reports | `/api/reports` |
 | Nearby Hospitals | `/api/hospitals` |
 | User Profile | `/api/profile` |
+| Health / Readiness | `/api/health` |
+
+---
+
+# 🐳 Run with Docker (optional)
+
+A `docker-compose.yml` is included to run MongoDB, the FastAPI backend, and a
+production-style static frontend together:
+
+```bash
+cp .env.example .env   # set real GEMINI_API_KEY / SECRET_KEY first
+docker compose up --build
+```
+
+- Frontend: <http://localhost:5173>
+- Backend API + docs: <http://localhost:8000>
+- MongoDB: `localhost:27017`
+
+Stop with `docker compose down` (add `-v` only if you want to erase the data volume).
 
 ---
 

@@ -1,4 +1,4 @@
-"""Safety-first educational response engine used when OpenAI is unavailable."""
+"""Safety-first educational response engine used when Gemini is unavailable."""
 
 from __future__ import annotations
 

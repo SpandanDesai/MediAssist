@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Bell, BotMessageSquare, Building2, FileText, HeartPulse, Home, ImagePlus, LogOut, MapPinned, Menu, Moon, Settings, ShieldCheck, Sun, UserRound, X } from "lucide-react";
+import { BotMessageSquare, Building2, FileText, HeartPulse, Home, ImagePlus, LogOut, MapPinned, Menu, Moon, Phone, Settings, ShieldCheck, Sun, UserRound, X } from "lucide-react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useTheme } from "../contexts/ThemeContext";
@@ -48,6 +48,7 @@ export function AppShell() {
   const [menuOpen, setMenuOpen] = useState(false);
   const title = titleMap[location.pathname] || "MediAssist AI";
   const initials = user?.name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "MA";
+  const emergencyNumber = import.meta.env.VITE_EMERGENCY_NUMBER || "112";
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
@@ -61,8 +62,18 @@ export function AppShell() {
       {menuOpen && <div className="fixed inset-0 z-50 bg-slate-950/40 backdrop-blur-sm lg:hidden" onClick={() => setMenuOpen(false)}><aside className="flex h-full w-[290px] flex-col bg-white p-5 shadow-2xl dark:bg-slate-900" onClick={(event) => event.stopPropagation()}><div className="flex items-center justify-between"><Brand /><button onClick={() => setMenuOpen(false)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"><X className="h-5 w-5" /></button></div><nav className="mt-8 flex-1 space-y-1"><NavItems onClick={() => setMenuOpen(false)} /></nav><button onClick={logout} className="mt-4 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30"><LogOut className="h-4.5 w-4.5" />Sign out</button></aside></div>}
 
       <main className="min-h-screen lg:pl-[268px]">
-        <header className="sticky top-0 z-30 flex h-[73px] items-center justify-between border-b border-slate-200/80 bg-slate-50/85 px-4 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/85 sm:px-6 lg:px-8"><div className="flex items-center gap-3"><button onClick={() => setMenuOpen(true)} className="rounded-xl p-2 text-slate-600 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800 lg:hidden" aria-label="Open navigation"><Menu className="h-5 w-5" /></button><div><p className="text-xs font-medium text-slate-500 dark:text-slate-400">MediAssist AI</p><h1 className="text-base font-bold text-slate-900 dark:text-white sm:text-lg">{title}</h1></div></div><div className="flex items-center gap-1.5 sm:gap-3"><button onClick={toggleTheme} className="rounded-xl p-2.5 text-slate-500 transition hover:bg-slate-200 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="Toggle dark mode">{theme === "dark" ? <Sun className="h-4.5 w-4.5" /> : <Moon className="h-4.5 w-4.5" />}</button><button className="relative hidden rounded-xl p-2.5 text-slate-500 transition hover:bg-slate-200 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 sm:block" aria-label="Notifications"><Bell className="h-4.5 w-4.5" /><span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-emerald-500" /></button><NavLink to="/profile" className="flex items-center gap-2 rounded-xl py-1 pl-1 pr-2 text-left transition hover:bg-slate-200 dark:hover:bg-slate-800"><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-100 text-xs font-bold text-sky-700 dark:bg-sky-500/15 dark:text-sky-300">{initials}</span><span className="hidden max-w-28 truncate text-sm font-semibold sm:block">{user?.name || "Your profile"}</span></NavLink></div></header>
+        <header className="sticky top-0 z-30 flex h-[73px] items-center justify-between border-b border-slate-200/80 bg-slate-50/85 px-4 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/85 sm:px-6 lg:px-8"><div className="flex items-center gap-3"><button onClick={() => setMenuOpen(true)} className="rounded-xl p-2 text-slate-600 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800 lg:hidden" aria-label="Open navigation"><Menu className="h-5 w-5" /></button><div><p className="text-xs font-medium text-slate-500 dark:text-slate-400">MediAssist AI</p><h1 className="text-base font-bold text-slate-900 dark:text-white sm:text-lg">{title}</h1></div></div><div className="flex items-center gap-1.5 sm:gap-3"><button onClick={toggleTheme} className="rounded-xl p-2.5 text-slate-500 transition hover:bg-slate-200 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="Toggle dark mode">{theme === "dark" ? <Sun className="h-4.5 w-4.5" /> : <Moon className="h-4.5 w-4.5" />}</button><NavLink to="/profile" className="flex items-center gap-2 rounded-xl py-1 pl-1 pr-2 text-left transition hover:bg-slate-200 dark:hover:bg-slate-800"><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-100 text-xs font-bold text-sky-700 dark:bg-sky-500/15 dark:text-sky-300">{initials}</span><span className="hidden max-w-28 truncate text-sm font-semibold sm:block">{user?.name || "Your profile"}</span></NavLink></div></header>
         <div className="mx-auto w-full max-w-[1480px] p-4 sm:p-6 lg:p-8"><Outlet /></div>
+        <div className="sticky bottom-0 z-20 border-t border-rose-200 bg-rose-50/95 px-4 py-3 backdrop-blur lg:hidden dark:border-rose-900/70 dark:bg-rose-950/90">
+          <div className="mx-auto flex max-w-[1480px] items-center gap-3">
+            <a href={`tel:${emergencyNumber}`} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-rose-600 text-sm font-bold text-white">
+              <Phone className="h-4 w-4" />Call {emergencyNumber}
+            </a>
+            <NavLink to="/hospitals" className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white text-sm font-bold text-rose-700 dark:border-rose-800 dark:bg-slate-950 dark:text-rose-200">
+              <MapPinned className="h-4 w-4" />Nearby care
+            </NavLink>
+          </div>
+        </div>
       </main>
     </div>
   );

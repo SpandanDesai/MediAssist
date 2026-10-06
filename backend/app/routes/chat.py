@@ -12,6 +12,7 @@ from app.deps import CurrentUser
 from app.schemas.chat import ChatRequest
 from app.schemas.common import ConsultationResult
 from app.services.ai_service import consult_text
+from app.services.emergency import enrich_emergency_with_location
 from app.services.rate_limit import client_key, consultation_limiter
 from app.utils.serializers import profile_context
 
@@ -39,12 +40,22 @@ async def chat(payload: ChatRequest, request: Request, user: CurrentUser) -> Con
                 if item.get("role") in {"user", "assistant"} and item.get("content"):
                     history.append({"role": item["role"], "content": item["content"]})
 
+    # Merge optional client context into profile context for richer grounding.
+    ctx_parts = [part for part in (profile_context(user), payload.context) if part]
+    merged_context = chr(10).join(ctx_parts) if ctx_parts else None
+
     result = await consult_text(
         payload.message,
         conversation_id=payload.conversation_id,
         history=history[-12:],
-        profile_context=profile_context(user),
+        profile_context=merged_context,
     )
+    if result.emergency:
+        result = await enrich_emergency_with_location(
+            result,
+            latitude=payload.latitude,
+            longitude=payload.longitude,
+        )
 
     now = datetime.now(UTC)
     user_message = {"id": str(uuid4()), "role": "user", "content": payload.message, "created_at": now}

@@ -25,6 +25,7 @@ def serialize_user(document: dict[str, Any]) -> UserOut:
         allergies=document.get("allergies"),
         medical_history=document.get("medical_history"),
         chronic_diseases=document.get("chronic_diseases"),
+        current_medications=document.get("current_medications"),
         emergency_contact=document.get("emergency_contact"),
     )
 
@@ -38,6 +39,7 @@ def profile_context(document: dict[str, Any]) -> str:
         ("Allergies", "allergies"),
         ("Medical history", "medical_history"),
         ("Chronic diseases", "chronic_diseases"),
+        ("Current medications", "current_medications"),
     ]:
         value = document.get(key)
         if value:

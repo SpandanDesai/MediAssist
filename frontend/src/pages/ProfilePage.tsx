@@ -19,6 +19,7 @@ export function ProfilePage() {
     allergies: user?.allergies || "",
     medical_history: user?.medical_history || "",
     chronic_diseases: user?.chronic_diseases || "",
+    current_medications: user?.current_medications || "",
     emergency_contact: user?.emergency_contact || "",
   });
 
@@ -37,6 +38,7 @@ export function ProfilePage() {
         allergies: form.allergies || null,
         medical_history: form.medical_history || null,
         chronic_diseases: form.chronic_diseases || null,
+        current_medications: form.current_medications || null,
         emergency_contact: form.emergency_contact || null,
       });
       updateUser({ ...updated, email: user?.email || updated.email });
@@ -76,6 +78,7 @@ export function ProfilePage() {
             <div className="sm:col-span-2"><Label htmlFor="allergies">Known allergies</Label><Textarea id="allergies" value={form.allergies} onChange={update("allergies")} placeholder="Medications, foods, environmental…" /></div>
             <div className="sm:col-span-2"><Label htmlFor="medical_history">Medical history</Label><Textarea id="medical_history" value={form.medical_history} onChange={update("medical_history")} /></div>
             <div className="sm:col-span-2"><Label htmlFor="chronic_diseases">Chronic diseases</Label><Textarea id="chronic_diseases" value={form.chronic_diseases} onChange={update("chronic_diseases")} /></div>
+            <div className="sm:col-span-2"><Label htmlFor="current_medications">Current medications</Label><Textarea id="current_medications" value={form.current_medications} onChange={update("current_medications")} placeholder="List any daily medications, supplements, or recent antibiotics…" /></div>
             <div className="sm:col-span-2"><Label htmlFor="emergency_contact">Emergency contact</Label><Input id="emergency_contact" value={form.emergency_contact} onChange={update("emergency_contact")} placeholder="Name and phone number" /></div>
             <div className="sm:col-span-2"><Button type="submit" disabled={pending}><Save className="h-4 w-4" />{pending ? "Saving…" : "Save profile"}</Button></div>
           </form>

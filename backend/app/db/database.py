@@ -70,6 +70,7 @@ class Database:
         await self.database.users.create_index("email", unique=True)
         await self.database.conversations.create_index([("user_id", 1), ("updated_at", -1)])
         await self.database.reports.create_index([("user_id", 1), ("created_at", -1)])
+        await self.database.assessments.create_index([("user_id", 1), ("created_at", -1)])
 
     async def insert_one(self, collection: str, document: Document) -> Document:
         stored = deepcopy(document)

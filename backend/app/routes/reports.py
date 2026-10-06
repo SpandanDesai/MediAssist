@@ -72,6 +72,10 @@ async def create_report(payload: ReportRequest, user: CurrentUser) -> Response:
 
     pdf_bytes = build_report_pdf(
         user_name=str(user.get("name") or "MediAssist user"),
+        user_age=user.get("age"),
+        user_gender=user.get("gender"),
+        user_allergies=user.get("allergies"),
+        user_medications=user.get("current_medications"),
         title=title,
         symptoms=symptoms or "Not specified",
         conversation_text=conversation_text or symptoms or "No conversation attached.",

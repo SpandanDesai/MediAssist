@@ -21,6 +21,29 @@ class PossibleCondition(BaseModel):
     description: str | None = None
 
 
+class CrisisResource(BaseModel):
+    """Actionable help resource shown when emergency language is detected."""
+
+    label: str
+    detail: str
+    phone: str | None = None
+    url: str | None = None
+
+
+class NearbyFacility(BaseModel):
+    """Compact hospital/clinic card embedded in emergency responses."""
+
+    id: str
+    name: str
+    type: str | None = None
+    distance_km: float | None = None
+    address: str | None = None
+    phone: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    maps_url: str | None = None
+
+
 class ConsultationResult(BaseModel):
     response: str
     possible_conditions: list[PossibleCondition] = Field(default_factory=list)
@@ -30,6 +53,9 @@ class ConsultationResult(BaseModel):
     disclaimer: str = DISCLAIMER
     emergency: bool = False
     conversation_id: str | None = None
+    emergency_category: str | None = None
+    crisis_resources: list[CrisisResource] = Field(default_factory=list)
+    nearest_hospitals: list[NearbyFacility] = Field(default_factory=list)
 
 
 class MessageOut(BaseModel):
@@ -58,6 +84,7 @@ class UserOut(BaseModel):
     allergies: str | None = None
     medical_history: str | None = None
     chronic_diseases: str | None = None
+    current_medications: str | None = None
     emergency_contact: str | None = None
 
 

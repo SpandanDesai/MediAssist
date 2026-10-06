@@ -18,6 +18,10 @@ from app.schemas.common import DISCLAIMER
 def build_report_pdf(
     *,
     user_name: str,
+    user_age: int | None = None,
+    user_gender: str | None = None,
+    user_allergies: str | None = None,
+    user_medications: str | None = None,
     title: str,
     symptoms: str,
     conversation_text: str,
@@ -40,10 +44,18 @@ def build_report_pdf(
 
     meta = [
         ["Patient / user", user_name],
+    ]
+    if user_age or user_gender:
+        meta.append(["Age / Gender", f"{user_age or 'Unknown'} / {user_gender or 'Unknown'}"])
+    if user_allergies:
+        meta.append(["Allergies", user_allergies])
+    if user_medications:
+        meta.append(["Current medications", user_medications])
+    meta.extend([
         ["Report title", title],
         ["Generated", datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")],
         ["Urgency estimate", urgency or "Not specified"],
-    ]
+    ])
     table = Table(meta, colWidths=[1.7 * inch, 4.5 * inch])
     table.setStyle(
         TableStyle(

@@ -198,9 +198,7 @@ class GeminiMedicalAgent:
         if extra_instruction:
             system_text = f"{SYSTEM_INSTRUCTION}\n\n{extra_instruction}"
 
-        contents: list[dict[str, Any]] = [
-            {"role": "user", "parts": [{"text": f"SYSTEM: {system_text}"}]},
-        ]
+        contents: list[dict[str, Any]] = []
 
         for item in history or []:
             role = item.get("role")
@@ -237,18 +235,26 @@ class GeminiMedicalAgent:
         for model_name in self.available_models:
             url = f"{GEMINI_BASE}/{model_name}:generateContent"
             try:
-                return await self._try_generate(url, contents)
+                return await self._try_generate(url, contents, system_text=system_text)
             except Exception as exc:
                 logger.warning("Gemini model %s failed: %s", model_name, exc)
                 last_error = exc
 
         raise RuntimeError(f"All Gemini models failed. Last error: {last_error}")
 
-    async def _try_generate(self, url: str, contents: list[dict[str, Any]]) -> dict[str, Any]:
+    async def _try_generate(
+        self,
+        url: str,
+        contents: list[dict[str, Any]],
+        *,
+        system_text: str | None = None,
+    ) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "contents": contents,
             "generationConfig": {"response_mime_type": "application/json"},
         }
+        if system_text:
+            payload["systemInstruction"] = {"parts": [{"text": system_text}]}
         async with httpx.AsyncClient(timeout=90.0, verify=_ssl_verify()) as client:
             response = await client.post(url, params={"key": self.api_key}, json=payload)
             if response.status_code == 400:
