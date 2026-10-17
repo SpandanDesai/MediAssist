@@ -259,57 +259,27 @@ async def consult_voice(
     history: list[dict[str, str]] | None = None,
     profile_context: str | None = None,
 ) -> VoiceResponse:
-    """Run voice consult through the same Homie Gemini agent (audio + optional profile)."""
+    """Run voice consult with pre-generation transcription and deterministic safety guards."""
 
     if not _gemini_ready():
         transcript = "Voice consultation received. Configure GEMINI_API_KEY to enable speech understanding."
         result = analyze_symptoms(transcript, conversation_id, profile_context)
         return VoiceResponse(**result.model_dump(), transcript=transcript, audio_url=None)
 
-    prompt = (
-        "Please listen to this voice note, transcribe what the user said, "
-        "and provide educational medical guidance in the required JSON format."
-    )
-    if profile_context:
-        prompt = f"Optional patient profile context:\n{profile_context}\n\n{prompt}"
+    # First transcribe the audio so we can inspect user words BEFORE model consultation
+    transcript = await transcribe_audio(audio_bytes, filename)
 
-    try:
-        data = await get_gemini_agent().generate(
-            user_text=prompt,
-            history=history,
-            audio_bytes=audio_bytes,
-            audio_mime=_guess_audio_mime(filename),
-            extra_instruction=VOICE_EXTRA,
-        )
-        result = _consultation_from_dict(data, conversation_id)
-        transcript = str(data.get("transcript") or "Voice note received.")
-
-        # Run the same deterministic checks on the transcript before trusting the model reply.
-        pre = _deterministic_pre_check(transcript, conversation_id)
-        if pre is not None:
-            spoken = pre.response
-            if pre.recommendation:
-                spoken = f"{pre.response}\n\nRecommendation: {pre.recommendation}"
-            audio_url = await synthesize_speech(spoken)
-            return VoiceResponse(**pre.model_dump(), transcript=transcript, audio_url=audio_url)
-
-        if result.emergency or detect_emergency(result.response):
-            category = detect_emergency(result.response) or "urgent symptoms"
-            emergency = emergency_consultation(category, conversation_id)
-            spoken = emergency.response
-            if emergency.recommendation:
-                spoken = f"{emergency.response}\n\nRecommendation: {emergency.recommendation}"
-            audio_url = await synthesize_speech(spoken)
-            return VoiceResponse(**emergency.model_dump(), transcript=transcript, audio_url=audio_url)
-
-        spoken = result.response
-        if result.recommendation:
-            spoken = f"{result.response}\n\nRecommendation: {result.recommendation}"
+    # Run medication guard and emergency check directly on the transcript before the main consultation model runs
+    pre = _deterministic_pre_check(transcript, conversation_id)
+    if pre is not None:
+        spoken = pre.response
+        if pre.recommendation:
+            spoken = f"{pre.response}\n\nRecommendation: {pre.recommendation}"
         audio_url = await synthesize_speech(spoken)
-        return VoiceResponse(**result.model_dump(), transcript=transcript, audio_url=audio_url)
-    except Exception as exc:
-        logger.exception("Gemini voice consult failed: %s", exc)
-        transcript = await transcribe_audio(audio_bytes, filename)
+        return VoiceResponse(**pre.model_dump(), transcript=transcript, audio_url=audio_url)
+
+    # Proceed to full text consultation with conversation history and profile context
+    try:
         result = await consult_text(
             transcript,
             conversation_id=conversation_id,
@@ -321,3 +291,7 @@ async def consult_voice(
             spoken = f"{result.response}\n\nRecommendation: {result.recommendation}"
         audio_url = await synthesize_speech(spoken)
         return VoiceResponse(**result.model_dump(), transcript=transcript, audio_url=audio_url)
+    except Exception as exc:
+        logger.exception("Voice consultation processing failed: %s", exc)
+        result = analyze_symptoms(transcript, conversation_id, profile_context)
+        return VoiceResponse(**result.model_dump(), transcript=transcript, audio_url=None)

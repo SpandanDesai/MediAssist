@@ -27,6 +27,7 @@ async def _signup(payload: SignupRequest, request: Request) -> TokenResponse:
             "name": payload.name.strip(),
             "email": email,
             "password_hash": hash_password(payload.password),
+            "token_version": 1,
             "age": payload.age,
             "gender": payload.gender,
             "blood_group": None,
@@ -36,7 +37,7 @@ async def _signup(payload: SignupRequest, request: Request) -> TokenResponse:
             "emergency_contact": None,
         },
     )
-    token = create_access_token(str(document["_id"]))
+    token = create_access_token(str(document["_id"]), token_version=1)
     return TokenResponse(access_token=token, user=serialize_user(document))
 
 
@@ -46,7 +47,11 @@ async def _login(payload: LoginRequest, request: Request) -> TokenResponse:
     user = await database.find_one("users", {"email": email})
     if not user or not verify_password(payload.password, str(user.get("password_hash") or "")):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect email or password.")
-    token = create_access_token(str(user["_id"]))
+    current_version = int(user.get("token_version", 0))
+    if current_version == 0:
+        current_version = 1
+        await database.update_one("users", {"_id": user["_id"]}, {"token_version": current_version})
+    token = create_access_token(str(user["_id"]), token_version=current_version)
     return TokenResponse(access_token=token, user=serialize_user(user))
 
 
@@ -60,3 +65,20 @@ async def signup(payload: SignupRequest, request: Request) -> TokenResponse:
 @router.post("/login", response_model=TokenResponse, include_in_schema=False)
 async def login(payload: LoginRequest, request: Request) -> TokenResponse:
     return await _login(payload, request)
+
+
+@router.post("/auth/logout")
+async def logout(request: Request) -> dict[str, str]:
+    from app.core.security import decode_token_payload
+    from fastapi.security.utils import get_authorization_scheme_param
+
+    auth_header = request.headers.get("Authorization")
+    scheme, param = get_authorization_scheme_param(auth_header)
+    if scheme.lower() == "bearer" and param:
+        payload = decode_token_payload(param)
+        if payload and payload.get("sub"):
+            user = await database.find_one("users", {"_id": payload["sub"]})
+            if user:
+                new_version = int(user.get("token_version", 0)) + 1
+                await database.update_one("users", {"_id": user["_id"]}, {"token_version": new_version})
+    return {"message": "Successfully logged out."}

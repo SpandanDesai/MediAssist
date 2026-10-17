@@ -45,21 +45,36 @@ async def validate_image_upload(file: UploadFile) -> tuple[bytes, str]:
 
     data = await read_upload(file)
     try:
-        from PIL import Image
+        from PIL import Image, ImageOps
 
+        # First verify structure
         with Image.open(io.BytesIO(data)) as image:
-            fmt = (image.format or "").lower()
-            image.verify()
-        if fmt not in {"png", "jpeg", "jpg"}:
-            raise ValueError("unsupported image format")
+            fmt = (image.format or "").upper()
+            if fmt not in {"PNG", "JPEG", "JPG"}:
+                raise ValueError("unsupported image format")
+
+        # Open and re-encode to strip EXIF, metadata, and malformed payload bytes
+        with Image.open(io.BytesIO(data)) as image:
+            # Transpose orientation if EXIF tag exists so rotation is preserved when EXIF is stripped
+            clean_image = ImageOps.exif_transpose(image)
+            out_buf = io.BytesIO()
+            if fmt == "PNG":
+                clean_image.save(out_buf, format="PNG", optimize=True)
+                mime = "image/png"
+            else:
+                if clean_image.mode in ("RGBA", "P"):
+                    clean_image = clean_image.convert("RGB")
+                clean_image.save(out_buf, format="JPEG", quality=90, optimize=True)
+                mime = "image/jpeg"
+            sanitized_data = out_buf.getvalue()
+
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="The uploaded file is not a valid PNG or JPEG image.",
         ) from exc
 
-    mime = "image/png" if fmt == "png" else "image/jpeg"
-    return data, mime
+    return sanitized_data, mime
 
 
 async def validate_audio_upload(file: UploadFile) -> tuple[bytes, str]:

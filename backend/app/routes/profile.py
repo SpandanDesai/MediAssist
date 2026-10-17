@@ -45,3 +45,16 @@ async def update_profile(payload: ProfileUpdateRequest, user: CurrentUser) -> Us
         return serialize_user(user)
     updated = await database.update_one("users", {"_id": user["_id"]}, updates)
     return serialize_user(updated or user)
+
+
+@router.delete("/profile")
+async def delete_account(user: CurrentUser) -> dict[str, str]:
+    """Permanently delete user account and all associated health data."""
+    user_id = str(user["_id"])
+    # Delete conversations, reports, images, assessments, and user account
+    await database.delete_many("conversations", {"user_id": user_id})
+    await database.delete_many("reports", {"user_id": user_id})
+    await database.delete_many("images", {"user_id": user_id})
+    await database.delete_many("assessments", {"user_id": user_id})
+    await database.delete_one("users", {"_id": user["_id"]})
+    return {"status": "deleted", "message": "Account and all associated health data have been permanently deleted."}

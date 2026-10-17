@@ -35,6 +35,37 @@ def detect_emergency(text: str) -> str | None:
 
 def crisis_resources_for(category: str) -> list[CrisisResource]:
     """Return category-aware crisis/help resources for the emergency action pack."""
+    if category == "suicidal ideation":
+        return [
+            CrisisResource(
+                label="Suicide & Crisis Lifeline (US & Canada)",
+                detail="Free, confidential support available 24/7. Call or text 988.",
+                phone="988",
+                url="https://988lifeline.org/",
+            ),
+            CrisisResource(
+                label="Tele-MANAS & KIRAN Mental Health Helpline (India)",
+                detail="Toll-free 24/7 mental health and suicide prevention helplines in India.",
+                phone="14416",
+                url="https://telemanas.mohfw.gov.in/",
+            ),
+            CrisisResource(
+                label="Emergency Services / Samaritans (UK & Europe)",
+                detail="Call 111 (NHS urgent mental health) or 116 123 (Samaritans UK/Europe) or 112 for emergency services.",
+                phone="112",
+                url="https://www.samaritans.org/",
+            ),
+            CrisisResource(
+                label="International Resources (Befrienders Worldwide & IASP)",
+                detail="Find confidential, compassionate emotional support lines in your specific country.",
+                url="https://www.befrienders.org/",
+            ),
+            CrisisResource(
+                label="Connect with someone you trust",
+                detail="Please reach out to a close family member, friend, counselor, or healthcare professional right now. You do not have to carry this alone.",
+            ),
+        ]
+
     resources: list[CrisisResource] = [
         CrisisResource(
             label="Local emergency services",
@@ -42,21 +73,7 @@ def crisis_resources_for(category: str) -> list[CrisisResource]:
             phone="112",
         ),
     ]
-    if category == "suicidal ideation":
-        resources.extend(
-            [
-                CrisisResource(
-                    label="International Association for Suicide Prevention",
-                    detail="Find local crisis lines and emotional support resources by country.",
-                    url="https://www.iasp.info/suicidalthoughts/",
-                ),
-                CrisisResource(
-                    label="Talk to someone nearby",
-                    detail="If possible, stay with a trusted person until you can reach emergency or crisis support.",
-                ),
-            ]
-        )
-    elif category in {"chest pain / cardiac concern", "breathing difficulty", "stroke symptoms", "anaphylaxis"}:
+    if category in {"chest pain / cardiac concern", "breathing difficulty", "stroke symptoms", "anaphylaxis"}:
         resources.append(
             CrisisResource(
                 label="Go to the nearest emergency department",
@@ -82,11 +99,42 @@ def emergency_consultation(
     hospitals = nearest_hospitals or []
     hospital_lines = ""
     if hospitals:
-        hospital_lines = "\n\nNearest facilities we found near you:\n" + "\n".join(
+        hospital_lines = "\n\nNearest medical facilities near you:\n" + "\n".join(
             f"- {h.name}"
             + (f" ({h.distance_km} km)" if h.distance_km is not None else "")
             + (f" — {h.phone}" if h.phone else "")
             for h in hospitals[:3]
+        )
+
+    if category == "suicidal ideation":
+        return ConsultationResult(
+            response=(
+                "I hear how much pain you may be experiencing right now, but please know you do not have to go through this alone. "
+                "There is compassionate, free, and confidential support available at any moment.\n\n"
+                "Please connect with a crisis counselor or emergency services right now:\n"
+                "• In the US/Canada: Call or text 988 (Suicide & Crisis Lifeline)\n"
+                "• In India: Call 14416 or 1800-891-4416 (Tele-MANAS) / 1800-599-0019 (KIRAN)\n"
+                "• In the UK: Call 111 (NHS mental health services) or 116 123 (Samaritans)\n"
+                "• Worldwide: Call your local emergency number (such as 112 or 911) or visit https://www.befrienders.org\n\n"
+                "Please reach out to a trusted family member, loved one, or professional who can be with you right now."
+                f"{hospital_lines}"
+            ),
+            possible_conditions=[
+                PossibleCondition(
+                    name="Crisis support / mental health safety",
+                    confidence=None,
+                    description="Immediate emotional support and crisis counseling are recommended.",
+                )
+            ],
+            urgency="emergency",
+            recommendation="Connect with a crisis hotline (call or text 988, 14416, or 112) or reach out to a trusted person immediately.",
+            follow_up_questions=[],
+            disclaimer=DISCLAIMER,
+            emergency=True,
+            conversation_id=conversation_id,
+            emergency_category=category,
+            crisis_resources=crisis_resources_for(category),
+            nearest_hospitals=hospitals,
         )
 
     return ConsultationResult(
@@ -101,7 +149,7 @@ def emergency_consultation(
         possible_conditions=[
             PossibleCondition(
                 name="Possible medical emergency",
-                confidence=95,
+                confidence=None,
                 description="Language consistent with a time-sensitive medical emergency was detected.",
             )
         ],

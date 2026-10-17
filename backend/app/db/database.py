@@ -72,6 +72,9 @@ class Database:
         await self.database.conversations.create_index([("user_id", 1), ("updated_at", -1)])
         await self.database.reports.create_index([("user_id", 1), ("created_at", -1)])
         await self.database.assessments.create_index([("user_id", 1), ("created_at", -1)])
+        await self.database.images.create_index([("user_id", 1), ("created_at", -1)])
+        # Data retention TTL: expire temporary image metadata after 90 days (7776000 seconds)
+        await self.database.images.create_index("created_at", expireAfterSeconds=7776000)
 
     async def insert_one(self, collection: str, document: Document) -> Document:
         stored = deepcopy(document)
@@ -142,6 +145,17 @@ class Database:
                     del self._memory[collection][identifier]
                     return True
         return False
+
+    async def delete_many(self, collection: str, query: Document) -> int:
+        if self.database is not None:
+            return (await self.database[collection].delete_many(query)).deleted_count
+        count = 0
+        async with self._lock:
+            for identifier, item in list(self._memory.get(collection, {}).items()):
+                if _matches(item, query):
+                    del self._memory[collection][identifier]
+                    count += 1
+        return count
 
 
 def _matches(document: Document, query: Document) -> bool:

@@ -16,6 +16,11 @@ interface Props {
 
 export function EmergencyAlert({ onClose, compact = false, category, crisisResources, nearestHospitals }: Props) {
   const dialogRef = useRef<HTMLDivElement>(null);
+  const isCrisis = Boolean(
+    category?.toLowerCase().includes("suicid") ||
+    category?.toLowerCase().includes("self-harm") ||
+    category?.toLowerCase().includes("crisis")
+  );
 
   useEffect(() => {
     if (compact) return;
@@ -31,7 +36,9 @@ export function EmergencyAlert({ onClose, compact = false, category, crisisResou
     <div
       className={
         compact
-          ? "rounded-2xl border border-rose-200 bg-rose-50 p-4 text-rose-950 dark:border-rose-900/70 dark:bg-rose-950/40 dark:text-rose-50"
+          ? isCrisis
+            ? "rounded-2xl border border-indigo-200 bg-indigo-50 p-4 text-indigo-950 dark:border-indigo-900/70 dark:bg-indigo-950/40 dark:text-indigo-50"
+            : "rounded-2xl border border-rose-200 bg-rose-50 p-4 text-rose-950 dark:border-rose-900/70 dark:bg-rose-950/40 dark:text-rose-50"
           : "fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm"
       }
       role="alertdialog"
@@ -42,36 +49,56 @@ export function EmergencyAlert({ onClose, compact = false, category, crisisResou
       <div
         ref={dialogRef}
         tabIndex={-1}
-        className={compact ? "outline-none" : "max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl border border-rose-200 bg-white p-6 shadow-2xl outline-none dark:border-rose-900 dark:bg-slate-900 sm:p-8"}
+        className={
+          compact
+            ? "outline-none"
+            : isCrisis
+              ? "max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl border border-indigo-200 bg-white p-6 shadow-2xl outline-none dark:border-indigo-900 dark:bg-slate-900 sm:p-8"
+              : "max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl border border-rose-200 bg-white p-6 shadow-2xl outline-none dark:border-rose-900 dark:bg-slate-900 sm:p-8"
+        }
       >
         <div className="flex items-start gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-rose-500 text-white shadow-lg shadow-rose-500/30">
+          <div
+            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${
+              isCrisis ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/30" : "bg-rose-500 text-white shadow-lg shadow-rose-500/30"
+            }`}
+          >
             <AlertTriangle className="h-6 w-6" aria-hidden="true" />
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.16em] text-rose-600 dark:text-rose-300">Urgent safety notice</p>
-                <h2 id="emergency-heading" className="mt-1 text-xl font-bold text-rose-950 dark:text-white">
-                  Medical emergency detected
+                <p className={`text-xs font-bold uppercase tracking-[0.16em] ${isCrisis ? "text-indigo-600 dark:text-indigo-300" : "text-rose-600 dark:text-rose-300"}`}>
+                  {isCrisis ? "Crisis support notice" : "Urgent safety notice"}
+                </p>
+                <h2 id="emergency-heading" className={`mt-1 text-xl font-bold ${isCrisis ? "text-indigo-950 dark:text-white" : "text-rose-950 dark:text-white"}`}>
+                  {isCrisis ? "Immediate support is available" : "Medical emergency detected"}
                 </h2>
-                {category && <p className="mt-1 text-xs font-medium text-rose-700 dark:text-rose-200">{category}</p>}
+                {category && <p className={`mt-1 text-xs font-medium ${isCrisis ? "text-indigo-700 dark:text-indigo-200" : "text-rose-700 dark:text-rose-200"}`}>{category}</p>}
               </div>
               {onClose && (
-                <button onClick={onClose} aria-label="Close emergency notice" className="rounded-lg p-1 text-rose-500 hover:bg-rose-100 dark:hover:bg-rose-950">
+                <button onClick={onClose} aria-label="Close emergency notice" className="rounded-lg p-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">
                   <X className="h-5 w-5" />
                 </button>
               )}
             </div>
-            <p id="emergency-body" className="mt-3 text-sm leading-6 text-rose-800 dark:text-rose-100">
-              Call local emergency services immediately or go to the nearest emergency department. Do not wait for an AI response.
+            <p id="emergency-body" className={`mt-3 text-sm leading-6 ${isCrisis ? "text-slate-700 dark:text-slate-200" : "text-rose-800 dark:text-rose-100"}`}>
+              {isCrisis
+                ? "You are not alone, and there is caring, confidential support available 24/7. Please reach out to a crisis counselor or emergency services immediately."
+                : "Call local emergency services immediately or go to the nearest emergency department. Do not wait for an AI response."}
             </p>
           </div>
         </div>
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
-          <a href={`tel:${emergencyNumber}`} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-700">
-            <Phone className="h-4 w-4" aria-hidden="true" />Call {emergencyNumber}
-          </a>
+          {isCrisis ? (
+            <a href="tel:988" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">
+              <Phone className="h-4 w-4" aria-hidden="true" />Call / Text 988 (Lifeline)
+            </a>
+          ) : (
+            <a href={`tel:${emergencyNumber}`} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-700">
+              <Phone className="h-4 w-4" aria-hidden="true" />Call {emergencyNumber}
+            </a>
+          )}
           <Link to="/hospitals" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white px-4 text-sm font-semibold text-rose-700 transition hover:bg-rose-50 dark:border-rose-900 dark:bg-slate-950 dark:text-rose-200">
             <Hospital className="h-4 w-4" aria-hidden="true" />Find emergency care
           </Link>

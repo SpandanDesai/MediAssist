@@ -169,6 +169,13 @@ export const authApi = {
     const userSource = (raw.user || raw.profile || { name: payload.name, email: payload.email }) as Partial<User>;
     return { token, user: normalizeUser(userSource) };
   },
+  async logout() {
+    try {
+      await api.post("/api/auth/logout");
+    } catch {
+      // Ignore network errors on logout
+    }
+  },
 };
 
 export const profileApi = {
@@ -179,6 +186,10 @@ export const profileApi = {
   async update(payload: Partial<User>) {
     const response = await api.put<Partial<User> | { data?: Partial<User> }>("/api/profile", payload);
     return normalizeUser(unwrap(response.data) as Partial<User>);
+  },
+  async deleteAccount() {
+    const response = await api.delete<{ status: string; message: string }>("/api/profile");
+    return response.data;
   },
 };
 

@@ -25,17 +25,27 @@ def verify_password(password: str, password_hash: str) -> bool:
         return False
 
 
-def create_access_token(subject: str) -> str:
+def create_access_token(subject: str, token_version: int = 0) -> str:
     settings = get_settings()
     expires_at = datetime.now(UTC) + timedelta(minutes=settings.access_token_expire_minutes)
-    return jwt.encode({"sub": subject, "exp": expires_at, "iat": datetime.now(UTC)}, settings.secret_key, algorithm=ALGORITHM)
+    payload = {
+        "sub": subject,
+        "token_version": token_version,
+        "exp": expires_at,
+        "iat": datetime.now(UTC),
+    }
+    return jwt.encode(payload, settings.secret_key, algorithm=ALGORITHM)
 
 
 def decode_access_token(token: str) -> str | None:
+    payload = decode_token_payload(token)
+    return payload.get("sub") if payload else None
+
+
+def decode_token_payload(token: str) -> dict | None:
     settings = get_settings()
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[ALGORITHM])
-        subject = payload.get("sub")
-        return subject if isinstance(subject, str) and subject else None
+        return payload
     except InvalidTokenError:
         return None

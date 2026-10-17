@@ -8,7 +8,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { apiErrorMessage, profileApi } from "../lib/api";
 
 export function ProfilePage() {
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, logout } = useAuth();
   const { showToast } = useToast();
   const [pending, setPending] = useState(false);
   const [form, setForm] = useState({
@@ -83,6 +83,38 @@ export function ProfilePage() {
             <div className="sm:col-span-2"><Label htmlFor="emergency_contact">Emergency contact</Label><Input id="emergency_contact" value={form.emergency_contact} onChange={update("emergency_contact")} placeholder="Name and phone number" /></div>
             <div className="sm:col-span-2"><Button type="submit" disabled={pending}><Save className="h-4 w-4" />{pending ? "Saving…" : "Save profile"}</Button></div>
           </form>
+        </CardContent>
+      </Card>
+
+      <Card className="mt-8 border-rose-200 dark:border-rose-900/50">
+        <CardHeader>
+          <div>
+            <p className="text-sm font-bold text-rose-600 dark:text-rose-400">Danger zone</p>
+            <p className="mt-1 text-xs text-slate-500">Permanently delete your account and all associated conversations, medical reports, images, and health data.</p>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs text-slate-600 dark:text-slate-400">This action cannot be undone. All stored consultations and reports will be wiped immediately.</p>
+            <Button
+              type="button"
+              variant="outline"
+              className="border-rose-300 text-rose-600 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-400 dark:hover:bg-rose-950/50"
+              onClick={async () => {
+                if (window.confirm("Are you sure you want to permanently delete your account and all health history? This cannot be undone.")) {
+                  try {
+                    await profileApi.deleteAccount();
+                    showToast({ tone: "success", title: "Account deleted", message: "All your data has been removed." });
+                    logout();
+                  } catch (err) {
+                    showToast({ tone: "error", title: "Deletion failed", message: apiErrorMessage(err) });
+                  }
+                }
+              }}
+            >
+              Delete account & all data
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>

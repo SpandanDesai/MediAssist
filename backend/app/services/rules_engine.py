@@ -26,9 +26,9 @@ def analyze_symptoms(message: str, conversation_id: str | None = None, profile_c
 
     if any(word in text for word in ("fever", "sore throat", "cough", "cold", "flu")):
         conditions = [
-            PossibleCondition(name="Viral upper respiratory infection", confidence=72, description="Common viral illnesses often cause fever, sore throat, and cough."),
-            PossibleCondition(name="Influenza-like illness", confidence=18, description="Influenza can cause fever, body aches, and respiratory symptoms."),
-            PossibleCondition(name="Streptococcal pharyngitis (strep throat)", confidence=10, description="Bacterial throat infection is possible when sore throat is prominent."),
+            PossibleCondition(name="Viral upper respiratory infection (heuristic match)", confidence=None, description="Common viral illnesses often cause fever, sore throat, and cough."),
+            PossibleCondition(name="Influenza-like illness (heuristic match)", confidence=None, description="Influenza can cause fever, body aches, and respiratory symptoms."),
+            PossibleCondition(name="Streptococcal pharyngitis / strep throat (heuristic match)", confidence=None, description="Bacterial throat infection is possible when sore throat is prominent."),
         ]
         urgency = "medium" if "fever" in text and any(w in text for w in ("three", "3", "four", "4", "week", "worsen")) else "medium"
         recommendation = "Supportive care (rest, fluids, fever management as advised by a clinician/pharmacist) may help. Visit a doctor if symptoms worsen, persist beyond a few days, or breathing becomes difficult."
@@ -39,17 +39,17 @@ def analyze_symptoms(message: str, conversation_id: str | None = None, profile_c
         ]
     elif any(word in text for word in ("rash", "itch", "hives", "skin")):
         conditions = [
-            PossibleCondition(name="Irritant or allergic skin reaction", confidence=55, description="Contact exposures and allergies commonly cause itching or rash."),
-            PossibleCondition(name="Viral exanthem", confidence=25, description="Some viral illnesses produce temporary rashes."),
-            PossibleCondition(name="Dermatitis", confidence=20, description="Inflamed skin can appear dry, red, or itchy."),
+            PossibleCondition(name="Irritant or allergic skin reaction (heuristic match)", confidence=None, description="Contact exposures and allergies commonly cause itching or rash."),
+            PossibleCondition(name="Viral exanthem (heuristic match)", confidence=None, description="Some viral illnesses produce temporary rashes."),
+            PossibleCondition(name="Dermatitis (heuristic match)", confidence=None, description="Inflamed skin can appear dry, red, or itchy."),
         ]
         urgency = "medium"
         recommendation = "Avoid known irritants, keep the area clean and moisturized, and consult a clinician or dermatologist if the rash spreads, blisters, or is painful."
     elif any(word in text for word in ("headache", "migraine")):
         conditions = [
-            PossibleCondition(name="Tension-type headache", confidence=60, description="Stress, posture, and dehydration commonly contribute."),
-            PossibleCondition(name="Migraine", confidence=25, description="Migraines may include sensitivity to light/sound and nausea."),
-            PossibleCondition(name="Dehydration-related headache", confidence=15, description="Inadequate fluid intake can trigger headache."),
+            PossibleCondition(name="Tension-type headache (heuristic match)", confidence=None, description="Stress, posture, and dehydration commonly contribute."),
+            PossibleCondition(name="Migraine (heuristic match)", confidence=None, description="Migraines may include sensitivity to light/sound and nausea."),
+            PossibleCondition(name="Dehydration-related headache (heuristic match)", confidence=None, description="Inadequate fluid intake can trigger headache."),
         ]
         urgency = "high" if any(w in text for w in ("worst", "sudden", "stiff neck", "vision", "vomit")) else "medium"
         recommendation = "Rest in a quiet space, hydrate, and seek urgent care for sudden severe headache, neurological changes, or neck stiffness."
@@ -57,17 +57,17 @@ def analyze_symptoms(message: str, conversation_id: str | None = None, profile_c
             recommendation = "Sudden severe headache or neurological symptoms need prompt professional evaluation. Consider urgent or emergency care."
     elif any(word in text for word in ("stomach", "nausea", "vomit", "diarrhea", "abdominal")):
         conditions = [
-            PossibleCondition(name="Viral gastroenteritis", confidence=58, description="Stomach viruses often cause nausea, vomiting, or diarrhea."),
-            PossibleCondition(name="Food-related illness", confidence=27, description="Contaminated food can cause gastrointestinal symptoms."),
-            PossibleCondition(name="Indigestion / gastritis", confidence=15, description="Irritation of the stomach lining can cause discomfort."),
+            PossibleCondition(name="Viral gastroenteritis (heuristic match)", confidence=None, description="Stomach viruses often cause nausea, vomiting, or diarrhea."),
+            PossibleCondition(name="Food-related illness (heuristic match)", confidence=None, description="Contaminated food can cause gastrointestinal symptoms."),
+            PossibleCondition(name="Indigestion / gastritis (heuristic match)", confidence=None, description="Irritation of the stomach lining can cause discomfort."),
         ]
         urgency = "medium"
         recommendation = "Prioritize hydration with small sips of fluids. Seek care for severe abdominal pain, blood in stool/vomit, high fever, or signs of dehydration."
     else:
         conditions = [
-            PossibleCondition(name="Nonspecific symptom constellation", confidence=40, description="More detail is needed before narrowing educational possibilities."),
-            PossibleCondition(name="Self-limited viral illness", confidence=35, description="Many short-lived symptoms are viral and improve with supportive care."),
-            PossibleCondition(name="Stress-related somatic symptoms", confidence=25, description="Stress and sleep disruption can amplify bodily sensations."),
+            PossibleCondition(name="Nonspecific symptom constellation (heuristic match)", confidence=None, description="More detail is needed before narrowing educational possibilities."),
+            PossibleCondition(name="Self-limited viral illness (heuristic match)", confidence=None, description="Many short-lived symptoms are viral and improve with supportive care."),
+            PossibleCondition(name="Stress-related somatic symptoms (heuristic match)", confidence=None, description="Stress and sleep disruption can amplify bodily sensations."),
         ]
 
     context_note = ""
@@ -77,8 +77,8 @@ def analyze_symptoms(message: str, conversation_id: str | None = None, profile_c
     response = (
         "Thank you for sharing those details. Based on what you described, here is cautious educational guidance—not a diagnosis."
         f"{context_note}\n\n"
-        "I am estimating possible explanations with confidence percentages to show uncertainty. "
-        "A clinician should evaluate you for a confirmed assessment, especially if symptoms worsen."
+        "The possibilities listed are broad heuristic matches based on common symptom patterns, not statistical probabilities. "
+        "A qualified healthcare professional should evaluate you in person for an accurate assessment, especially if symptoms worsen."
     )
 
     return ConsultationResult(
@@ -98,28 +98,31 @@ def analyze_image_notes(notes: str | None = None, conversation_id: str | None = 
     emergency = detect_emergency(text)
     if emergency:
         base = emergency_consultation(emergency, conversation_id)
-        return ImageAnalysisResult(**base.model_dump(), description="Emergency language detected in the accompanying notes.", visible_abnormalities=[], severity="emergency", advice=base.recommendation)
+        return ImageAnalysisResult(
+            **base.model_dump(),
+            description="Emergency language detected in the accompanying notes.",
+            visible_abnormalities=[],
+            severity="emergency",
+            advice=base.recommendation,
+        )
 
     return ImageAnalysisResult(
         response=(
-            "I reviewed the uploaded image cautiously. Without an in-person exam, visible findings alone cannot confirm a diagnosis. "
-            "Below are educational possibilities based on common visual patterns."
+            "Automated image analysis is currently unavailable because the AI vision service is offline. "
+            "To help me understand your concern, please describe what you see: when did it start, where is it located, "
+            "is it changing, itchy, warm, or painful? If you have severe or worsening symptoms, please consult a healthcare provider."
         ),
-        description="Uploaded image appears to show a localized visible skin or soft-tissue concern. Image quality, lighting, and camera angle can significantly affect interpretation.",
-        visible_abnormalities=["Possible redness or discoloration", "Possible surface texture change"],
-        possible_conditions=[
-            PossibleCondition(name="Irritant contact dermatitis", confidence=45, description="Common when skin contacts an irritant."),
-            PossibleCondition(name="Mild inflammatory rash", confidence=30, description="Non-specific inflammation can look similar across conditions."),
-            PossibleCondition(name="Early localized infection", confidence=25, description="Consider professional review if pain, warmth, fever, or spreading occurs."),
-        ],
-        urgency="medium",
-        severity="uncertain / mild-to-moderate appearing",
-        recommendation="If the area is painful, spreading, blistering, or accompanied by fever, seek clinician or dermatologist review. For severe rapid swelling of face/lips/throat, seek emergency care.",
-        advice="Keep the area clean, avoid scratching or harsh products, photograph changes over time, and consult a clinician if uncertain.",
+        description="Image could not be evaluated automatically (vision service offline). User description required.",
+        visible_abnormalities=[],
+        possible_conditions=[],
+        urgency="low",
+        severity="uncertain / unanalyzed",
+        recommendation="Please describe your visual symptoms in text or consult a healthcare professional for an in-person physical examination.",
+        advice="Do not rely on automated tools for visual triage when offline. Monitor for pain, rapid swelling, heat, or spreading.",
         follow_up_questions=[
-            "How long has this been present?",
-            "Is it itchy, painful, warm, or spreading?",
-            "Any new products, insect bites, or known allergies?",
+            "Where is this symptom located on your body?",
+            "How long has it been present and has it changed in size or color?",
+            "Are you experiencing pain, itching, warmth, or fever?",
         ],
         disclaimer=DISCLAIMER,
         emergency=False,

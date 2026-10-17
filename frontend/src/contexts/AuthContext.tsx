@@ -77,7 +77,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem(TOKEN_KEY, result.token);
         persistUser(result.user);
       },
-      logout: () => {
+      logout: async () => {
+        await authApi.logout();
         clearSession();
       },
       updateUser: persistUser,
