@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Response, status
 
 from app.core.config import get_settings
 from app.db.database import database
@@ -22,3 +22,21 @@ async def health() -> dict:
         "gemini_configured": bool(settings.gemini_api_key),
         "mongodb_error": database.connection_error,
     }
+
+
+@router.get("/ready")
+async def ready(response: Response) -> dict:
+    """Readiness: fails when production is configured without a real secret or database."""
+    settings = get_settings()
+    problems: list[str] = []
+    if settings.is_production:
+        if settings.secret_key.startswith("development-only") or len(settings.secret_key) < 32:
+            problems.append("SECRET_KEY is weak or default")
+        if database.using_memory:
+            problems.append("MongoDB not connected")
+        if not settings.cors_origins:
+            problems.append("FRONTEND_ORIGINS is empty")
+    if problems:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        return {"ready": False, "problems": problems}
+    return {"ready": True, "problems": []}

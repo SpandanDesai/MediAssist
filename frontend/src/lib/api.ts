@@ -33,6 +33,7 @@ export function apiErrorMessage(error: unknown, fallback = "Something went wrong
     if (typeof body?.detail === "string") return body.detail;
     if (Array.isArray(body?.detail)) return body.detail.map((item) => item.msg).filter(Boolean).join(" ") || fallback;
     if (body?.message) return body.message;
+    if (error.response?.status === 429) return "You are sending requests too quickly. Please wait a moment.";
     if (!error.response) return "Unable to reach MediAssist. Check that the API is running and try again.";
   }
   return fallback;
@@ -68,6 +69,7 @@ function normalizeUser(raw: Partial<User> & { username?: string; full_name?: str
     allergies: raw.allergies ?? null,
     medical_history: raw.medical_history ?? null,
     chronic_diseases: raw.chronic_diseases ?? null,
+    current_medications: raw.current_medications ?? null,
     emergency_contact: raw.emergency_contact ?? null,
   };
 }
@@ -193,9 +195,16 @@ export const chatApi = {
   },
 };
 
+export const medicationApi = {
+  async requiresProfessionalGuidance(text: string) {
+    const response = await api.post<{ requires_professional_guidance: boolean }>("/api/medication/check", { text });
+    return response.data.requires_professional_guidance;
+  },
+};
+
 export const historyApi = {
-  async list() {
-    const response = await api.get<unknown>("/api/history");
+  async list(q?: string) {
+    const response = await api.get<unknown>("/api/history", { params: q ? { q } : undefined });
     const raw = unwrap(response.data) as unknown;
     const list = Array.isArray(raw)
       ? raw

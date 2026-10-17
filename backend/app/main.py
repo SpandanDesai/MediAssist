@@ -10,7 +10,19 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
 from app.db.database import database
-from app.routes import assessment, auth, chat, health, history, hospitals, image, profile, reports, voice
+from app.routes import (
+    assessment,
+    auth,
+    chat,
+    health,
+    history,
+    hospitals,
+    image,
+    medication,
+    profile,
+    reports,
+    voice,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("mediassist")
@@ -33,7 +45,7 @@ def create_app() -> FastAPI:
     settings = get_settings()
     application = FastAPI(
         title=settings.app_name,
-        version="1.0.0",
+        version="1.1.0",
         description="Educational multimodal healthcare assistant API. Not a medical diagnosis service.",
         lifespan=lifespan,
     )
@@ -56,6 +68,7 @@ def create_app() -> FastAPI:
     application.include_router(hospitals.router, prefix=prefix)
     application.include_router(reports.router, prefix=prefix)
     application.include_router(assessment.router, prefix=prefix)
+    application.include_router(medication.router, prefix=prefix)
 
     @application.get("/")
     async def root() -> dict[str, str]:

@@ -4,6 +4,7 @@ import { useSearchParams } from "react-router-dom";
 import { EmergencyAlert } from "../components/EmergencyAlert";
 import { HealthAnalysisCard } from "../components/HealthAnalysisCard";
 import { MarkdownMessage } from "../components/MarkdownMessage";
+import { MedicationNotice } from "../components/MedicationNotice";
 import { TypingIndicator } from "../components/TypingIndicator";
 import { useToast } from "../components/Toast";
 import { Button } from "../components/ui/button";
@@ -11,7 +12,7 @@ import { Card, CardContent, CardHeader } from "../components/ui/card";
 import { Input, Textarea } from "../components/ui/form";
 import { Skeleton } from "../components/ui/skeleton";
 import { useGeolocation } from "../hooks/useGeolocation";
-import { chatApi, historyApi, reportApi, apiErrorMessage } from "../lib/api";
+import { chatApi, historyApi, medicationApi, reportApi, apiErrorMessage } from "../lib/api";
 import { displayDate, isEmergencyText } from "../lib/utils";
 import type { ChatMessage, Conversation, CrisisResource, HealthAnalysis, NearbyFacility } from "../types";
 
@@ -33,6 +34,7 @@ export function ChatPage() {
   const [query, setQuery] = useState("");
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [sending, setSending] = useState(false);
+  const [medicationNotice, setMedicationNotice] = useState(false);
   const [emergencyOpen, setEmergencyOpen] = useState(false);
   const [emergencyMeta, setEmergencyMeta] = useState<{
     category?: string;
@@ -84,6 +86,21 @@ export function ChatPage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, sending]);
+
+  useEffect(() => {
+    const text = draft.trim();
+    if (!text) {
+      setMedicationNotice(false);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      medicationApi
+        .requiresProfessionalGuidance(text.slice(0, 2000))
+        .then(setMedicationNotice)
+        .catch(() => setMedicationNotice(false));
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [draft]);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -193,6 +210,8 @@ export function ChatPage() {
       }
       await refreshHistory().catch(() => undefined);
     } catch (error) {
+      setDraft(trimmed);
+      setMessages((current) => current.filter((item) => item.id !== optimistic.id));
       showToast({ tone: "error", title: "Consultation failed", message: apiErrorMessage(error) });
     } finally {
       setSending(false);
@@ -224,8 +243,14 @@ export function ChatPage() {
         </CardHeader>
         <CardContent className="flex h-[calc(100%-4.5rem)] flex-col gap-3">
           <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <Input className="pl-9" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search history" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+            <Input
+              className="pl-9"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search history"
+              aria-label="Search conversation history"
+            />
           </div>
           <div className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
             {loadingHistory ? (
@@ -237,8 +262,12 @@ export function ChatPage() {
                     <span className="block truncate text-sm font-semibold">{conversation.title}</span>
                     <span className="mt-0.5 block truncate text-[11px] text-slate-500">{displayDate(conversation.updated_at)}</span>
                   </button>
-                  <button onClick={() => removeConversation(conversation.id)} className="rounded-lg p-2 text-slate-400 opacity-0 transition hover:bg-rose-50 hover:text-rose-600 group-hover:opacity-100" aria-label="Delete conversation">
-                    <Trash2 className="h-3.5 w-3.5" />
+                  <button
+                    onClick={() => removeConversation(conversation.id)}
+                    className="rounded-lg p-2 text-slate-400 opacity-100 transition hover:bg-rose-50 hover:text-rose-600 focus-visible:opacity-100 group-hover:opacity-100 md:opacity-0"
+                    aria-label={`Delete conversation ${conversation.title}`}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                   </button>
                 </div>
               ))
@@ -255,10 +284,18 @@ export function ChatPage() {
             <p className="text-sm font-bold">AI consultation</p>
             <p className="mt-1 text-xs text-slate-500">Educational guidance with confidence estimates — never a confirmed diagnosis.</p>
           </div>
-          <Button size="sm" variant="outline" onClick={downloadReport} disabled={!activeId}><FileDown className="h-4 w-4" />PDF</Button>
+          <Button size="sm" variant="outline" onClick={downloadReport} disabled={!activeId}>
+            <FileDown className="h-4 w-4" aria-hidden="true" />PDF
+          </Button>
         </CardHeader>
         <CardContent className="flex min-h-0 flex-1 flex-col gap-4">
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto rounded-2xl bg-slate-50/80 p-4 dark:bg-slate-950/40">
+          <div
+            className="min-h-0 flex-1 space-y-4 overflow-y-auto rounded-2xl bg-slate-50/80 p-4 dark:bg-slate-950/40"
+            role="log"
+            aria-live="polite"
+            aria-relevant="additions"
+            aria-label="Conversation messages"
+          >
             {messages.length === 0 && !sending && (
               <div className="mx-auto max-w-lg py-10 text-center">
                 <p className="text-sm font-bold">Describe what you are experiencing</p>
@@ -293,12 +330,15 @@ export function ChatPage() {
             {sending && <TypingIndicator />}
             <div ref={bottomRef} />
           </div>
+          {medicationNotice && <MedicationNotice />}
           <form onSubmit={submit} className="flex gap-3">
             <Textarea
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
               placeholder="Share your symptoms…"
+              aria-label="Describe your symptoms"
               className="min-h-[56px] flex-1"
+              maxLength={8000}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && !event.shiftKey) {
                   event.preventDefault();
@@ -306,7 +346,9 @@ export function ChatPage() {
                 }
               }}
             />
-            <Button type="submit" disabled={sending || !draft.trim()} className="self-end"><Send className="h-4 w-4" /></Button>
+            <Button type="submit" disabled={sending || !draft.trim()} className="self-end" aria-label="Send message">
+              <Send className="h-4 w-4" aria-hidden="true" />
+            </Button>
           </form>
         </CardContent>
       </Card>

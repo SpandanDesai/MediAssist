@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from collections.abc import Iterable
 from copy import deepcopy
 from datetime import UTC, datetime
@@ -146,10 +147,12 @@ class Database:
 def _matches(document: Document, query: Document) -> bool:
     """Small Mongo-like query subset used by the local fallback."""
     for field, expected in query.items():
+        if field == "$or":
+            if not any(_matches(document, clause) for clause in expected):
+                return False
+            continue
         actual = document.get(field)
         if isinstance(expected, dict) and "$regex" in expected:
-            import re
-
             flags = re.IGNORECASE if "i" in str(expected.get("$options", "")) else 0
             if not re.search(str(expected["$regex"]), str(actual or ""), flags):
                 return False
@@ -161,8 +164,13 @@ def _matches(document: Document, query: Document) -> bool:
     return True
 
 
-def _sort_key(value: Any) -> tuple[bool, Any]:
-    return (value is None, value if value is not None else "")
+def _sort_key(value: Any) -> tuple[int, str]:
+    """Total ordering across None, datetime, and string values for the memory store."""
+    if value is None:
+        return (0, "")
+    if isinstance(value, datetime):
+        return (1, value.isoformat())
+    return (1, str(value))
 
 
 database = Database()

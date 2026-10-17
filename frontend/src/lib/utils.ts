@@ -35,6 +35,7 @@ export function titleCase(value?: string) {
   return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
 }
 
+// Client-side pre-filter only for instant UI; the server emergency module is authoritative.
 export const EMERGENCY_PATTERN = /\b(chest pain|difficulty breathing|shortness of breath|cannot breathe|stroke|face droop|severe bleeding|unconscious|loss of consciousness|suicid(?:e|al)|kill myself|high fever.*(?:infant|baby)|seizure)\b/i;
 
 export function isEmergencyText(value: string) {

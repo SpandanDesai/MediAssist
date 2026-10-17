@@ -19,8 +19,8 @@ export function SettingsPage() {
           </div>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-3">
-          <Button variant={theme === "light" ? "primary" : "outline"} onClick={() => setTheme("light")}><Sun className="h-4 w-4" />Light</Button>
-          <Button variant={theme === "dark" ? "primary" : "outline"} onClick={() => setTheme("dark")}><Moon className="h-4 w-4" />Dark</Button>
+          <Button aria-pressed={theme === "light"} variant={theme === "light" ? "primary" : "outline"} onClick={() => setTheme("light")}><Sun className="h-4 w-4" aria-hidden="true" />Light</Button>
+          <Button aria-pressed={theme === "dark"} variant={theme === "dark" ? "primary" : "outline"} onClick={() => setTheme("dark")}><Moon className="h-4 w-4" aria-hidden="true" />Dark</Button>
           <Button variant="ghost" onClick={toggleTheme}>Toggle</Button>
         </CardContent>
       </Card>

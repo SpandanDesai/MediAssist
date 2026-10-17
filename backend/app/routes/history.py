@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from fastapi import APIRouter, HTTPException, Query, status
 
 from app.db.database import database
@@ -19,21 +21,18 @@ async def list_history(
 ) -> list[ConversationSummary]:
     query: dict = {"user_id": str(user["_id"])}
     if q:
-        query["title"] = {"$regex": q, "$options": "i"}
+        # Escape user input so it is matched literally, never as a regex.
+        pattern = re.escape(q.strip())
+        query["$or"] = [
+            {"title": {"$regex": pattern, "$options": "i"}},
+            {"preview": {"$regex": pattern, "$options": "i"}},
+        ]
     conversations = await database.find_many(
         "conversations",
         query,
         sort=[("updated_at", -1)],
         limit=100,
     )
-    # Memory fallback does not support regex on nested preview search; filter in Python when needed.
-    if q:
-        needle = q.lower()
-        conversations = [
-            item
-            for item in conversations
-            if needle in str(item.get("title") or "").lower() or needle in str(item.get("preview") or "").lower()
-        ]
     return [serialize_conversation(item, include_messages=True) for item in conversations]
 
 

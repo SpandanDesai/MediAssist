@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { AlertTriangle, ExternalLink, Hospital, Phone, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import type { CrisisResource, NearbyFacility } from "../types";
@@ -14,6 +15,18 @@ interface Props {
 }
 
 export function EmergencyAlert({ onClose, compact = false, category, crisisResources, nearestHospitals }: Props) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (compact) return;
+    dialogRef.current?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose?.();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [compact, onClose]);
+
   return (
     <div
       className={
@@ -24,11 +37,16 @@ export function EmergencyAlert({ onClose, compact = false, category, crisisResou
       role="alertdialog"
       aria-modal={!compact}
       aria-labelledby="emergency-heading"
+      aria-describedby="emergency-body"
     >
-      <div className={compact ? "" : "max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl border border-rose-200 bg-white p-6 shadow-2xl dark:border-rose-900 dark:bg-slate-900 sm:p-8"}>
+      <div
+        ref={dialogRef}
+        tabIndex={-1}
+        className={compact ? "outline-none" : "max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl border border-rose-200 bg-white p-6 shadow-2xl outline-none dark:border-rose-900 dark:bg-slate-900 sm:p-8"}
+      >
         <div className="flex items-start gap-4">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-rose-500 text-white shadow-lg shadow-rose-500/30">
-            <AlertTriangle className="h-6 w-6" />
+            <AlertTriangle className="h-6 w-6" aria-hidden="true" />
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-3">
@@ -45,17 +63,17 @@ export function EmergencyAlert({ onClose, compact = false, category, crisisResou
                 </button>
               )}
             </div>
-            <p className="mt-3 text-sm leading-6 text-rose-800 dark:text-rose-100">
+            <p id="emergency-body" className="mt-3 text-sm leading-6 text-rose-800 dark:text-rose-100">
               Call local emergency services immediately or go to the nearest emergency department. Do not wait for an AI response.
             </p>
           </div>
         </div>
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
           <a href={`tel:${emergencyNumber}`} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-700">
-            <Phone className="h-4 w-4" />Call {emergencyNumber}
+            <Phone className="h-4 w-4" aria-hidden="true" />Call {emergencyNumber}
           </a>
           <Link to="/hospitals" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white px-4 text-sm font-semibold text-rose-700 transition hover:bg-rose-50 dark:border-rose-900 dark:bg-slate-950 dark:text-rose-200">
-            <Hospital className="h-4 w-4" />Find emergency care
+            <Hospital className="h-4 w-4" aria-hidden="true" />Find emergency care
           </Link>
         </div>
         {!!crisisResources?.length && (
@@ -105,7 +123,7 @@ export function EmergencyAlert({ onClose, compact = false, category, crisisResou
 
 export function EmergencyInlineNotice() {
   return (
-    <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-100">
+    <div role="note" className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-100">
       <strong>Need immediate help?</strong> For chest pain, trouble breathing, severe bleeding, stroke symptoms, loss of consciousness, or thoughts of self-harm, call emergency services now.
     </div>
   );

@@ -14,6 +14,7 @@ from app.schemas.chat import ImageAnalysisResult, VoiceResponse
 from app.schemas.common import DISCLAIMER, ConsultationResult, PossibleCondition
 from app.services.emergency import detect_emergency, emergency_consultation
 from app.services.gemini_agent import VISION_EXTRA, VOICE_EXTRA, get_gemini_agent
+from app.services.medication_guard import medication_consultation, needs_medication_guard
 from app.services.rules_engine import analyze_image_notes, analyze_symptoms
 
 logger = logging.getLogger(__name__)
@@ -73,6 +74,16 @@ def _gemini_ready() -> bool:
     return get_gemini_agent().configured
 
 
+def _deterministic_pre_check(text: str, conversation_id: str | None) -> ConsultationResult | None:
+    """Safety checks that must run before any model call."""
+    emergency = detect_emergency(text)
+    if emergency:
+        return emergency_consultation(emergency, conversation_id)
+    if needs_medication_guard(text):
+        return medication_consultation(text, conversation_id)
+    return None
+
+
 async def consult_text(
     message: str,
     *,
@@ -80,9 +91,9 @@ async def consult_text(
     history: list[dict[str, str]] | None = None,
     profile_context: str | None = None,
 ) -> ConsultationResult:
-    emergency = detect_emergency(message)
-    if emergency:
-        return emergency_consultation(emergency, conversation_id)
+    pre = _deterministic_pre_check(message, conversation_id)
+    if pre is not None:
+        return pre
 
     if not _gemini_ready():
         return analyze_symptoms(message, conversation_id, profile_context)
@@ -94,8 +105,12 @@ async def consult_text(
     try:
         data = await get_gemini_agent().generate(user_text=user_content, history=history)
         result = _consultation_from_dict(data, conversation_id)
-        if result.emergency or detect_emergency(result.response):
-            category = detect_emergency(message) or detect_emergency(result.response) or "urgent symptoms"
+        # Re-check the model's own output so an unsafe reply is never returned as-is.
+        output_emergency = detect_emergency(result.response) or (
+            detect_emergency(result.recommendation or "") if result.recommendation else None
+        )
+        if result.emergency or output_emergency:
+            category = detect_emergency(message) or output_emergency or "urgent symptoms"
             return emergency_consultation(category, conversation_id)
         return result
     except Exception as exc:
@@ -110,15 +125,18 @@ async def consult_image(
     conversation_id: str | None = None,
 ) -> ImageAnalysisResult:
     if notes:
-        emergency = detect_emergency(notes)
-        if emergency:
-            base = emergency_consultation(emergency, conversation_id)
+        pre = _deterministic_pre_check(notes, conversation_id)
+        if pre is not None:
             return ImageAnalysisResult(
-                **base.model_dump(),
-                description="Emergency language detected in notes accompanying the image.",
+                **pre.model_dump(),
+                description=(
+                    "Emergency language detected in notes accompanying the image."
+                    if pre.emergency
+                    else "Safety guidance applied to the accompanying notes."
+                ),
                 visible_abnormalities=[],
-                severity="emergency",
-                advice=base.recommendation,
+                severity="emergency" if pre.emergency else "uncertain",
+                advice=pre.recommendation,
             )
 
     if not _gemini_ready():
@@ -265,12 +283,18 @@ async def consult_voice(
         )
         result = _consultation_from_dict(data, conversation_id)
         transcript = str(data.get("transcript") or "Voice note received.")
-        if detect_emergency(transcript) or result.emergency or detect_emergency(result.response):
-            category = (
-                detect_emergency(transcript)
-                or detect_emergency(result.response)
-                or "urgent symptoms"
-            )
+
+        # Run the same deterministic checks on the transcript before trusting the model reply.
+        pre = _deterministic_pre_check(transcript, conversation_id)
+        if pre is not None:
+            spoken = pre.response
+            if pre.recommendation:
+                spoken = f"{pre.response}\n\nRecommendation: {pre.recommendation}"
+            audio_url = await synthesize_speech(spoken)
+            return VoiceResponse(**pre.model_dump(), transcript=transcript, audio_url=audio_url)
+
+        if result.emergency or detect_emergency(result.response):
+            category = detect_emergency(result.response) or "urgent symptoms"
             emergency = emergency_consultation(category, conversation_id)
             spoken = emergency.response
             if emergency.recommendation:

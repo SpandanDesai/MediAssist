@@ -5,7 +5,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -44,6 +44,12 @@ class Settings(BaseSettings):
     overpass_url: str = "https://overpass-api.de/api/interpreter"
     max_upload_size_bytes: int = Field(default=10 * 1024 * 1024, ge=1024 * 1024, le=25 * 1024 * 1024)
     hospital_cache_ttl_seconds: int = Field(default=300, ge=30, le=3600)
+
+    @model_validator(mode="after")
+    def _guard_production(self) -> "Settings":
+        if self.is_production and self.secret_key.startswith("development-only"):
+            raise ValueError("SECRET_KEY must be set in production.")
+        return self
 
     @property
     def cors_origins(self) -> list[str]:

@@ -30,16 +30,17 @@ export function ProfilePage() {
     event.preventDefault();
     setPending(true);
     try {
+      const blankToNull = (value: string) => (value.trim() ? value.trim() : null);
       const updated = await profileApi.update({
         name: form.name.trim(),
         age: form.age ? Number(form.age) : null,
-        gender: form.gender || null,
-        blood_group: form.blood_group || null,
-        allergies: form.allergies || null,
-        medical_history: form.medical_history || null,
-        chronic_diseases: form.chronic_diseases || null,
-        current_medications: form.current_medications || null,
-        emergency_contact: form.emergency_contact || null,
+        gender: blankToNull(form.gender),
+        blood_group: blankToNull(form.blood_group),
+        allergies: blankToNull(form.allergies),
+        medical_history: blankToNull(form.medical_history),
+        chronic_diseases: blankToNull(form.chronic_diseases),
+        current_medications: blankToNull(form.current_medications),
+        emergency_contact: blankToNull(form.emergency_contact),
       });
       updateUser({ ...updated, email: user?.email || updated.email });
       showToast({ tone: "success", title: "Profile saved" });

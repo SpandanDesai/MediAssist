@@ -40,9 +40,12 @@ async def chat(payload: ChatRequest, request: Request, user: CurrentUser) -> Con
                 if item.get("role") in {"user", "assistant"} and item.get("content"):
                     history.append({"role": item["role"], "content": item["content"]})
 
-    # Merge optional client context into profile context for richer grounding.
-    ctx_parts = [part for part in (profile_context(user), payload.context) if part]
-    merged_context = chr(10).join(ctx_parts) if ctx_parts else None
+    # Optional client-supplied context is appended to the profile block, never trusted as instructions.
+    profile = profile_context(user)
+    if payload.context:
+        extra = f"Additional context from the user: {payload.context.strip()}"
+        profile = f"{profile}\n{extra}".strip() if profile else extra
+    merged_context = profile or None
 
     result = await consult_text(
         payload.message,
