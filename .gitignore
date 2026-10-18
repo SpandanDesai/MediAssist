@@ -34,3 +34,8 @@ mongo-data/
 .DS_Store
 Thumbs.db
 *.log
+
+# Throwaway scratch/patch scripts (never committed)
+_patch*.py
+_fix_*.py
+backend/app/services/_write_test.txt

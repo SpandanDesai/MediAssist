@@ -12,6 +12,39 @@ export interface User {
   chronic_diseases?: string | null;
   current_medications?: string | null;
   emergency_contact?: string | null;
+  allergy_list?: string[];
+  medication_list?: string[];
+}
+
+export interface Reminder {
+  id: string;
+  title: string;
+  notes?: string | null;
+  due_at?: string | null;
+  done: boolean;
+  created_at: string;
+}
+
+export interface RiskTrendPoint {
+  created_at: string;
+  risk_score: number;
+  risk_level: string;
+}
+
+export interface HighRiskConversation {
+  id: string;
+  title: string;
+  urgency: string;
+  updated_at: string;
+}
+
+export interface HealthStats {
+  counts: Record<string, number>;
+  conversations_by_modality: Record<string, number>;
+  urgency_distribution: Record<string, number>;
+  assessment_trend: RiskTrendPoint[];
+  recent_high_risk?: HighRiskConversation[];
+  window: number;
 }
 
 export interface PossibleCondition {
@@ -65,6 +98,9 @@ export interface Conversation {
   preview?: string;
   updated_at: string;
   messages?: ChatMessage[];
+  modality?: string | null;
+  tags?: string[];
+  archived?: boolean;
 }
 
 export interface ChatResponse extends HealthAnalysis {

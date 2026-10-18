@@ -6,6 +6,7 @@ and image analysis share the same Gemini model failover + JSON contract.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import logging
@@ -17,28 +18,40 @@ import httpx
 
 from app.core.config import get_settings
 from app.schemas.common import DISCLAIMER
+from app.services.metrics import increment
+from app.utils.conditions import parse_condition_items
 
 logger = logging.getLogger(__name__)
 
 GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta"
 
+# Transient upstream conditions worth retrying/failing over from (rate limits and
+# 5xx). Anything else (bad key, disabled model, 4xx) is terminal: retrying other
+# models with the same API key would only add latency.
+_TRANSIENT_STATUS = {408, 425, 429, 500, 502, 503, 504}
 
-def _ssl_verify() -> ssl.SSLContext | bool:
+
+class _TerminalGenerationError(RuntimeError):
+    """Raised for non-retryable failures so the failover loop can stop early."""
+
+
+def ssl_verify() -> ssl.SSLContext | bool:
     """Prefer the OS trust store (needed on some Windows/antivirus setups)."""
     try:
         return ssl.create_default_context()
     except Exception:
         return True
 
+
+# Backwards-compatible private alias.
+_ssl_verify = ssl_verify
+
 PRIORITY_MODELS = (
     "gemini-flash-latest",
-    "gemini-3.6-flash",
-    "gemini-3.5-flash",
-    "gemini-3.1-flash-lite",
+    "gemini-2.5-flash",
     "gemini-2.0-flash",
     "gemini-1.5-flash",
     "gemini-1.5-pro",
-    "gemini-2.5-flash",
 )
 
 SKIP_MODEL_TOKENS = (
@@ -109,6 +122,7 @@ class GeminiMedicalAgent:
         self.api_key = api_key or settings.gemini_api_key or ""
         self.available_models: list[str] = []
         self._initialized = False
+        self._init_lock = asyncio.Lock()
 
     @property
     def configured(self) -> bool:
@@ -117,6 +131,13 @@ class GeminiMedicalAgent:
     async def init(self) -> None:
         if self._initialized:
             return
+        # Serialize discovery so concurrent first requests fetch the model list once.
+        async with self._init_lock:
+            if self._initialized:
+                return
+            await self._discover_models()
+
+    async def _discover_models(self) -> None:
         if not self.configured:
             self.available_models = ["models/gemini-1.5-flash", "models/gemini-2.0-flash"]
             self._initialized = True
@@ -173,7 +194,7 @@ class GeminiMedicalAgent:
             logger.warning("Gemini model discovery failed: %s", type(exc).__name__)
             self.available_models = [
                 "models/gemini-flash-latest",
-                "models/gemini-3.5-flash",
+                "models/gemini-2.5-flash",
                 "models/gemini-2.0-flash",
             ]
         self._initialized = True
@@ -234,14 +255,26 @@ class GeminiMedicalAgent:
         contents.append({"role": "user", "parts": parts})
 
         last_error: Exception | None = None
-        for model_name in self.available_models:
-            url = f"{GEMINI_BASE}/{model_name}:generateContent"
-            try:
-                return await self._try_generate(url, contents, system_text=system_text)
-            except Exception as exc:
-                # Log the type only; error bodies can echo prompt content.
-                logger.warning("Gemini model %s failed: %s", model_name, type(exc).__name__)
-                last_error = exc
+        overall = get_settings().gemini_overall_timeout_seconds
+        # Bound the whole failover loop so a slow/degraded provider cannot make a
+        # consultation hang across every candidate model.
+        try:
+            async with asyncio.timeout(overall):
+                for model_name in self.available_models:
+                    url = f"{GEMINI_BASE}/{model_name}:generateContent"
+                    try:
+                        return await self._try_generate(url, contents, system_text=system_text)
+                    except _TerminalGenerationError as exc:
+                        # Same key across models -> no point failing over.
+                        logger.warning("Gemini terminal error (%s): %s", model_name, type(exc).__name__)
+                        raise
+                    except Exception as exc:
+                        # Log the type only; error bodies can echo prompt content.
+                        logger.warning("Gemini model %s failed: %s", model_name, type(exc).__name__)
+                        increment("gemini_model_failed_total")
+                        last_error = exc
+        except TimeoutError:
+            raise RuntimeError(f"Gemini generation exceeded the {overall:.0f}s time budget.") from None
 
         raise RuntimeError(f"All Gemini models failed ({type(last_error).__name__ if last_error else 'no models'}).")
 
@@ -252,21 +285,44 @@ class GeminiMedicalAgent:
         *,
         system_text: str | None = None,
     ) -> dict[str, Any]:
+        settings = get_settings()
+        timeout = settings.gemini_request_timeout_seconds
+        max_retries = settings.gemini_max_retries
         payload: dict[str, Any] = {
             "contents": contents,
             "generationConfig": {"response_mime_type": "application/json"},
         }
         if system_text:
             payload["systemInstruction"] = {"parts": [{"text": system_text}]}
-        async with httpx.AsyncClient(timeout=90.0, verify=_ssl_verify()) as client:
-            response = await client.post(url, params={"key": self.api_key}, json=payload)
-            if response.status_code == 400:
-                logger.warning("JSON mode failed for %s, retrying text mode", url)
-                payload.pop("generationConfig", None)
-                response = await client.post(url, params={"key": self.api_key}, json=payload)
-            if not response.is_success:
-                raise RuntimeError(f"HTTP {response.status_code}")
-            return self._parse_response(response.json())
+
+        attempt = 0
+        while True:
+            try:
+                async with httpx.AsyncClient(timeout=timeout, verify=_ssl_verify()) as client:
+                    response = await client.post(url, params={"key": self.api_key}, json=payload)
+                    if response.status_code == 400:
+                        logger.warning("JSON mode failed for %s, retrying text mode", url)
+                        payload.pop("generationConfig", None)
+                        response = await client.post(url, params={"key": self.api_key}, json=payload)
+                    if response.is_success:
+                        return self._parse_response(response.json())
+                    status_code = response.status_code
+                    if status_code in _TRANSIENT_STATUS and attempt < max_retries:
+                        attempt += 1
+                        increment("gemini_retry_total")
+                        await asyncio.sleep(min(2.0 ** attempt * 0.25, 2.0))
+                        continue
+                    if status_code in _TRANSIENT_STATUS:
+                        # Exhausted retries: let the caller fail over to the next model.
+                        raise RuntimeError(f"HTTP {status_code}")
+                    raise _TerminalGenerationError(f"HTTP {status_code}")
+            except (httpx.TimeoutException, httpx.TransportError) as exc:
+                if attempt < max_retries:
+                    attempt += 1
+                    increment("gemini_retry_total")
+                    await asyncio.sleep(min(2.0 ** attempt * 0.25, 2.0))
+                    continue
+                raise
 
     def _parse_response(self, data: dict[str, Any]) -> dict[str, Any]:
         candidates = data.get("candidates") or []
@@ -303,28 +359,7 @@ def normalize_homie_payload(data: dict[str, Any]) -> dict[str, Any]:
         or "Here is cautious educational guidance."
     )
     conditions = data.get("possible_conditions") or data.get("top_conditions") or data.get("conditions") or []
-    normalized_conditions: list[dict[str, Any]] = []
-    if isinstance(conditions, list):
-        for item in conditions:
-            if isinstance(item, str):
-                normalized_conditions.append({"name": item})
-                continue
-            if not isinstance(item, dict):
-                continue
-            confidence = item.get("confidence", item.get("probability"))
-            try:
-                confidence_val = float(confidence) if confidence is not None else None
-            except (TypeError, ValueError):
-                confidence_val = None
-            if confidence_val is not None and confidence_val <= 1:
-                confidence_val *= 100
-            normalized_conditions.append(
-                {
-                    "name": str(item.get("name") or item.get("condition") or "Possible condition"),
-                    "confidence": confidence_val,
-                    "description": str(item["description"]) if item.get("description") else None,
-                }
-            )
+    normalized_conditions = parse_condition_items(conditions)
 
     urgency = str(data.get("urgency") or "low").lower()
     if urgency not in {"low", "medium", "high", "emergency"}:

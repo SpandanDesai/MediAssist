@@ -1,8 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { authApi, profileApi, TOKEN_KEY, api } from "../lib/api";
+import { authApi, profileApi, api } from "../lib/api";
 import type { User } from "../types";
 
 const USER_KEY = "mediassist.user";
+// Non-sensitive hint that a cookie session likely exists, used only to avoid an
+// unnecessary bootstrap request. The token itself lives in an httpOnly cookie.
+const SESSION_HINT_KEY = "mediassist.session";
 
 interface AuthContextValue {
   user: User | null;
@@ -16,12 +19,12 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  // Never treat a cached localStorage user as logged-in until the API verifies the token.
+  // Never trust a cached hint as logged-in until the API verifies the session cookie.
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const clearSession = useCallback(() => {
-    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(SESSION_HINT_KEY);
     localStorage.removeItem(USER_KEY);
     setUser(null);
   }, []);
@@ -33,9 +36,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const token = localStorage.getItem(TOKEN_KEY);
-    if (!token) {
-      localStorage.removeItem(USER_KEY);
+    // Without a prior session hint, skip the bootstrap call entirely.
+    if (!localStorage.getItem(SESSION_HINT_KEY)) {
       setIsLoading(false);
       return;
     }
@@ -44,7 +46,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .get()
       .then((profile) => persistUser(profile))
       .catch(() => {
-        // Token invalid, expired, or API unreachable — require email/password again.
+        // Cookie invalid, expired, or API unreachable — require email/password again.
         clearSession();
       })
       .finally(() => setIsLoading(false));
@@ -69,12 +71,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isLoading,
       login: async (payload) => {
         const result = await authApi.login(payload);
-        localStorage.setItem(TOKEN_KEY, result.token);
+        localStorage.setItem(SESSION_HINT_KEY, "1");
         persistUser(result.user);
       },
       signup: async (payload) => {
         const result = await authApi.signup(payload);
-        localStorage.setItem(TOKEN_KEY, result.token);
+        localStorage.setItem(SESSION_HINT_KEY, "1");
         persistUser(result.user);
       },
       logout: async () => {

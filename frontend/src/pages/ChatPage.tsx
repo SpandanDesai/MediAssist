@@ -43,11 +43,107 @@ export function ChatPage() {
   }>({});
   const bottomRef = useRef<HTMLDivElement>(null);
   const locatedOnce = useRef(false);
+  const activeIdRef = useRef<string | undefined>(searchParams.get("conversation") || undefined);
+  const [hasMoreOlder, setHasMoreOlder] = useState(false);
+  const [oldestSeq, setOldestSeq] = useState<number | undefined>(undefined);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
 
   async function refreshHistory() {
     const items = await historyApi.list();
     setConversations(items);
     return items;
+  }
+
+  async function loadMessages(id?: string) {
+    if (!id) {
+      setMessages([]);
+      setHasMoreOlder(false);
+      setOldestSeq(undefined);
+      return;
+    }
+    try {
+      const page = await historyApi.messagesPage(id);
+      // Ignore a slower response if the user has since switched conversations.
+      if (activeIdRef.current === id) {
+        setMessages(page.messages);
+        setHasMoreOlder(page.hasMore);
+        setOldestSeq(page.oldestSeq);
+      }
+    } catch {
+      if (activeIdRef.current === id) {
+        setMessages([]);
+        setHasMoreOlder(false);
+        setOldestSeq(undefined);
+      }
+    }
+  }
+
+  async function loadOlder() {
+    const id = activeIdRef.current;
+    if (!id || oldestSeq === undefined || loadingOlder) return;
+    setLoadingOlder(true);
+    try {
+      const page = await historyApi.messagesPage(id, oldestSeq);
+      if (activeIdRef.current === id) {
+        // Keep ids stable across pages; prepend older turns.
+        const seen = new Set(messages.map((m) => m.id));
+        const fresh = page.messages.filter((m) => !seen.has(m.id));
+        setMessages((current) => [...fresh, ...current]);
+        setHasMoreOlder(page.hasMore);
+        if (page.oldestSeq !== undefined) setOldestSeq(page.oldestSeq);
+      }
+    } catch {
+      // Leave the current window intact if the older page fails to load.
+    } finally {
+      setLoadingOlder(false);
+    }
+  }
+
+  async function runMedicationReview() {
+    const text = draft.trim() || [...messages].reverse().find((m) => m.role === "user")?.content || "";
+    if (!text || reviewing) return;
+    setReviewing(true);
+    try {
+      const result = await medicationApi.review(text.slice(0, 2000));
+      if (!result) {
+        showToast({ tone: "info", title: "No profile conflicts found", message: "Nothing in your listed allergies or medications matches that." });
+        return;
+      }
+      const analysis: HealthAnalysis = {
+        possible_conditions: result.possible_conditions,
+        urgency: result.urgency,
+        recommendation: result.recommendation,
+        follow_up_questions: result.follow_up_questions,
+        disclaimer: result.disclaimer,
+        emergency: result.emergency,
+        emergency_category: result.emergency_category,
+        crisis_resources: result.crisis_resources,
+        nearest_hospitals: result.nearest_hospitals,
+      };
+      setMessages((current) => [
+        ...current,
+        {
+          id: `review-${Date.now()}`,
+          role: "assistant",
+          content: result.response,
+          created_at: new Date().toISOString(),
+          analysis,
+        },
+      ]);
+      if (result.emergency) {
+        setEmergencyMeta({
+          category: result.emergency_category,
+          crisisResources: result.crisis_resources,
+          nearestHospitals: result.nearest_hospitals,
+        });
+        setEmergencyOpen(true);
+      }
+    } catch (error) {
+      showToast({ tone: "error", title: "Profile check failed", message: apiErrorMessage(error) });
+    } finally {
+      setReviewing(false);
+    }
   }
 
   useEffect(() => {
@@ -65,8 +161,9 @@ export function ChatPage() {
         const requested = searchParams.get("conversation") || undefined;
         const selected = items.find((item) => item.id === requested) || (requested ? undefined : items[0]);
         if (selected) {
+          activeIdRef.current = selected.id;
           setActiveId(selected.id);
-          setMessages(selected.messages || []);
+          void loadMessages(selected.id);
         } else if (searchParams.get("prompt")) {
           setActiveId(undefined);
           setMessages([]);
@@ -111,12 +208,15 @@ export function ChatPage() {
   }, [conversations, query]);
 
   function selectConversation(conversation: Conversation) {
+    activeIdRef.current = conversation.id;
     setActiveId(conversation.id);
-    setMessages(conversation.messages || []);
+    setMessages([]);
     setSearchParams(conversation.id ? { conversation: conversation.id } : {});
+    void loadMessages(conversation.id);
   }
 
   async function startNew() {
+    activeIdRef.current = undefined;
     setActiveId(undefined);
     setMessages([]);
     setSearchParams({});
@@ -205,6 +305,7 @@ export function ChatPage() {
       };
       setMessages((current) => [...current, assistant]);
       if (result.conversation_id) {
+        activeIdRef.current = result.conversation_id;
         setActiveId(result.conversation_id);
         setSearchParams({ conversation: result.conversation_id });
       }
@@ -296,6 +397,13 @@ export function ChatPage() {
             aria-relevant="additions"
             aria-label="Conversation messages"
           >
+            {hasMoreOlder && (
+              <div className="flex justify-center pb-1">
+                <Button type="button" size="sm" variant="outline" onClick={() => void loadOlder()} disabled={loadingOlder}>
+                  {loadingOlder ? "Loading\u2026" : "Load older messages"}
+                </Button>
+              </div>
+            )}
             {messages.length === 0 && !sending && (
               <div className="mx-auto max-w-lg py-10 text-center">
                 <p className="text-sm font-bold">Describe what you are experiencing</p>
@@ -330,7 +438,7 @@ export function ChatPage() {
             {sending && <TypingIndicator />}
             <div ref={bottomRef} />
           </div>
-          {medicationNotice && <MedicationNotice />}
+          {medicationNotice && <MedicationNotice onReview={runMedicationReview} reviewing={reviewing} />}
           <form onSubmit={submit} className="flex gap-3">
             <Textarea
               value={draft}

@@ -11,6 +11,7 @@ from app.db.database import database
 from app.deps import CurrentUser
 from app.schemas.chat import VoiceResponse
 from app.services.ai_service import consult_voice
+from app.services.conversations import append_messages, get_history
 from app.services.rate_limit import client_key, upload_limiter
 from app.services.validation import validate_audio_upload
 from app.utils.serializers import profile_context
@@ -36,15 +37,13 @@ async def voice_consultation(
             {"_id": conversation_id, "user_id": str(user["_id"])},
         )
         if conversation:
-            for item in conversation.get("messages") or []:
-                if item.get("role") in {"user", "assistant"} and item.get("content"):
-                    history.append({"role": item["role"], "content": item["content"]})
+            history = await get_history(str(conversation["_id"]), str(user["_id"]), n=12)
 
     result = await consult_voice(
         audio_bytes,
         filename,
         conversation_id=conversation_id,
-        history=history[-12:],
+        history=history,
         profile_context=profile_context(user),
     )
 
@@ -60,14 +59,12 @@ async def voice_consultation(
     }
 
     if conversation:
-        messages = list(conversation.get("messages") or [])
-        messages.extend([user_message, assistant_message])
-        updated = await database.update_one(
+        conversation_id_out = str(conversation["_id"])
+        await database.update_one(
             "conversations",
-            {"_id": conversation["_id"]},
-            {"messages": messages, "preview": transcript[:180], "modality": "voice"},
+            {"_id": conversation_id_out},
+            {"preview": transcript[:180], "modality": "voice"},
         )
-        result.conversation_id = str((updated or conversation)["_id"])
     else:
         created = await database.insert_one(
             "conversations",
@@ -76,10 +73,12 @@ async def voice_consultation(
                 "title": (transcript[:72] + "…") if len(transcript) > 72 else transcript,
                 "preview": transcript[:180],
                 "modality": "voice",
-                "messages": [user_message, assistant_message],
+                "message_count": 0,
                 "updated_at": now,
             },
         )
-        result.conversation_id = str(created["_id"])
+        conversation_id_out = str(created["_id"])
 
+    await append_messages(conversation_id_out, str(user["_id"]), [user_message, assistant_message])
+    result.conversation_id = conversation_id_out
     return result

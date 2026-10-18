@@ -25,6 +25,13 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = Field(default=60 * 24 * 7, ge=5, le=60 * 24 * 365)
     frontend_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
+    # Session cookie issued on login/signup. Kept httpOnly so browser JavaScript on
+    # the frontend cannot read the token; the Authorization header is still accepted
+    # for API clients and automated tests.
+    auth_cookie_name: str = "access_token"
+    auth_cookie_samesite: str = "lax"
+    auth_cookie_secure: bool = False
+
     mongodb_uri: str | None = None
     mongodb_database: str = "mediassist"
 
@@ -45,6 +52,33 @@ class Settings(BaseSettings):
     max_upload_size_bytes: int = Field(default=10 * 1024 * 1024, ge=1024 * 1024, le=25 * 1024 * 1024)
     hospital_cache_ttl_seconds: int = Field(default=300, ge=30, le=3600)
 
+    # Outbound-call resilience. A single Gemini request gets ``gemini_request_timeout``
+    # seconds and the whole model-failover loop is bounded by ``gemini_overall_timeout``
+    # so a slow provider can never make a consultation hang across every candidate model.
+    gemini_request_timeout_seconds: float = Field(default=45.0, ge=5.0, le=180.0)
+    gemini_overall_timeout_seconds: float = Field(default=110.0, ge=10.0, le=600.0)
+    gemini_max_retries: int = Field(default=2, ge=0, le=5)
+    # Overpass is best-effort for emergency facility lookups; keep it quick and back off
+    # from a recently-failing endpoint instead of paying the full timeout every time.
+    overpass_timeout_seconds: float = Field(default=12.0, ge=3.0, le=60.0)
+    overpass_circuit_cooldown_seconds: int = Field(default=60, ge=0, le=600)
+
+    # When True, rate limiting may use the X-Forwarded-For header. Enable only when
+    # the API sits behind a trusted reverse proxy that overwrites this header;
+    # otherwise clients could spoof it to evade limits.
+    trust_proxy: bool = False
+
+    # Upper bound on turns stored per conversation (in the messages collection). Older
+    # turns are trimmed so very long threads stay bounded; the most recent are kept.
+    max_conversation_messages: int = Field(default=400, ge=20, le=2000)
+
+    # Lifetime of a signed, account-free report share link (minutes).
+    report_share_expire_minutes: int = Field(default=60 * 24 * 7, ge=5, le=60 * 24 * 90)
+
+    # Expose an aggregate, PHI-free ``/metrics`` counter snapshot for operators.
+    # Only non-sensitive counts (requests, latency buckets, fallbacks) are emitted.
+    enable_metrics: bool = True
+
     @model_validator(mode="after")
     def _guard_production(self) -> "Settings":
         if self.is_production and self.secret_key.startswith("development-only"):
@@ -60,6 +94,11 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.environment.lower() == "production"
+
+    @property
+    def cookie_secure(self) -> bool:
+        """Cookies are always Secure in production, even if not explicitly set."""
+        return self.auth_cookie_secure or self.is_production
 
 
 @lru_cache

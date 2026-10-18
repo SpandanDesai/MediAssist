@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+import json
 import logging
+import time
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
+from datetime import UTC, datetime
+from uuid import uuid4
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.core.config import get_settings
 from app.db.database import database
@@ -19,17 +25,58 @@ from app.routes import (
     hospitals,
     image,
     medication,
+    metrics,
     profile,
+    reminders,
     reports,
+    stats,
     voice,
 )
+from app.services import metrics as metrics_service
 
-logging.basicConfig(level=logging.INFO)
+# Correlates every log line from a single request; set by the middleware below.
+request_id_ctx: ContextVar[str] = ContextVar("request_id", default="-")
+
 logger = logging.getLogger("mediassist")
+
+
+class _RequestIdFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.request_id = request_id_ctx.get()
+        return True
+
+
+class _JsonFormatter(logging.Formatter):
+    """One JSON object per line so logs are machine-parseable in production."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        payload: dict[str, object] = {
+            "ts": datetime.now(UTC).isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+            "request_id": getattr(record, "request_id", "-"),
+            "msg": record.getMessage(),
+        }
+        if record.exc_info:
+            payload["exc"] = self.formatException(record.exc_info)
+        return json.dumps(payload, ensure_ascii=False)
+
+
+def _configure_logging() -> None:
+    root = logging.getLogger()
+    if root.handlers and getattr(root.handlers[0], "_mediassist_json", False):
+        return  # already configured (e.g. reload workers re-import)
+    handler = logging.StreamHandler()
+    handler.setFormatter(_JsonFormatter())
+    handler.addFilter(_RequestIdFilter())
+    handler._mediassist_json = True  # type: ignore[attr-defined]
+    root.handlers = [handler]
+    root.setLevel(logging.INFO)
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    _configure_logging()
     settings = get_settings()
     await database.connect()
     logger.info(
@@ -53,9 +100,42 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=settings.cors_origins or ["http://localhost:5173"],
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
     )
+
+    @application.middleware("http")
+    async def request_context(request: Request, call_next):
+        """Attach a request id for log correlation and record traffic/latency metrics."""
+        request_id = request.headers.get("X-Request-ID") or uuid4().hex
+        token = request_id_ctx.set(request_id)
+        start = time.perf_counter()
+        try:
+            response = await call_next(request)
+        finally:
+            elapsed_ms = (time.perf_counter() - start) * 1000
+            request_id_ctx.reset(token)
+        if settings.enable_metrics:
+            metrics_service.increment("http_requests_total")
+            if response.status_code >= 500:
+                metrics_service.increment("http_5xx_total")
+            if elapsed_ms >= 1000:
+                metrics_service.increment("http_slow_total")
+        response.headers["X-Request-ID"] = request_id
+        return response
+
+    @application.exception_handler(Exception)
+    async def unhandled_exception_handler(_: Request, exc: Exception) -> JSONResponse:
+        """Return a consistent JSON envelope for unexpected server-side failures.
+
+        HTTPException (and other FastAPI handlers) still take precedence, so this
+        only catches genuine bugs. Details are logged, never exposed to clients.
+        """
+        logger.exception("Unhandled server error", exc_info=exc)
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "An unexpected error occurred. Please try again."},
+        )
 
     prefix = settings.api_prefix
     application.include_router(health.router, prefix=prefix)
@@ -69,6 +149,9 @@ def create_app() -> FastAPI:
     application.include_router(reports.router, prefix=prefix)
     application.include_router(assessment.router, prefix=prefix)
     application.include_router(medication.router, prefix=prefix)
+    application.include_router(stats.router, prefix=prefix)
+    application.include_router(reminders.router, prefix=prefix)
+    application.include_router(metrics.router, prefix=prefix)
 
     @application.get("/")
     async def root() -> dict[str, str]:

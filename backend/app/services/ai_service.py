@@ -9,42 +9,30 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+import httpx
+
 from app.core.config import get_settings
 from app.schemas.chat import ImageAnalysisResult, VoiceResponse
 from app.schemas.common import DISCLAIMER, ConsultationResult, PossibleCondition
 from app.services.emergency import detect_emergency, emergency_consultation
-from app.services.gemini_agent import VISION_EXTRA, VOICE_EXTRA, get_gemini_agent
+from app.services.gemini_agent import VISION_EXTRA, VOICE_EXTRA, get_gemini_agent, ssl_verify
 from app.services.medication_guard import medication_consultation, needs_medication_guard
+from app.services.metrics import increment
 from app.services.rules_engine import analyze_image_notes, analyze_symptoms
+from app.utils.conditions import parse_condition_items
 
 logger = logging.getLogger(__name__)
 
 
 def _conditions_from_raw(raw: Any) -> list[PossibleCondition]:
-    if not isinstance(raw, list):
-        return []
-    out: list[PossibleCondition] = []
-    for item in raw:
-        if isinstance(item, str):
-            out.append(PossibleCondition(name=item))
-            continue
-        if not isinstance(item, dict):
-            continue
-        confidence = item.get("confidence", item.get("probability"))
-        try:
-            confidence_val = float(confidence) if confidence is not None else None
-        except (TypeError, ValueError):
-            confidence_val = None
-        if confidence_val is not None and confidence_val <= 1:
-            confidence_val *= 100
-        out.append(
-            PossibleCondition(
-                name=str(item.get("name") or item.get("condition") or "Possible condition"),
-                confidence=confidence_val,
-                description=str(item["description"]) if item.get("description") else None,
-            )
+    return [
+        PossibleCondition(
+            name=item["name"],
+            confidence=item["confidence"],
+            description=item["description"],
         )
-    return out
+        for item in parse_condition_items(raw)
+    ]
 
 
 def _consultation_from_dict(data: dict[str, Any], conversation_id: str | None) -> ConsultationResult:
@@ -78,8 +66,10 @@ def _deterministic_pre_check(text: str, conversation_id: str | None) -> Consulta
     """Safety checks that must run before any model call."""
     emergency = detect_emergency(text)
     if emergency:
+        increment("emergency_detected_total")
         return emergency_consultation(emergency, conversation_id)
     if needs_medication_guard(text):
+        increment("medication_guard_triggered_total")
         return medication_consultation(text, conversation_id)
     return None
 
@@ -106,15 +96,18 @@ async def consult_text(
         data = await get_gemini_agent().generate(user_text=user_content, history=history)
         result = _consultation_from_dict(data, conversation_id)
         # Re-check the model's own output so an unsafe reply is never returned as-is.
+        # The input message was already screened by _deterministic_pre_check, so only
+        # the generated text needs inspecting here.
         output_emergency = detect_emergency(result.response) or (
             detect_emergency(result.recommendation or "") if result.recommendation else None
         )
         if result.emergency or output_emergency:
-            category = detect_emergency(message) or output_emergency or "urgent symptoms"
+            category = output_emergency or "urgent symptoms"
             return emergency_consultation(category, conversation_id)
         return result
     except Exception as exc:
         logger.exception("Gemini chat failed: %s", exc)
+        increment("gemini_fallback_total")
         return analyze_symptoms(message, conversation_id, profile_context)
 
 
@@ -161,6 +154,7 @@ async def consult_image(
         )
     except Exception as exc:
         logger.exception("Gemini vision failed: %s", exc)
+        increment("gemini_fallback_total")
         return analyze_image_notes(notes, conversation_id)
 
 
@@ -225,15 +219,7 @@ async def synthesize_speech(text: str) -> str | None:
                 },
             },
         }
-        import ssl
-
-        import httpx
-
-        try:
-            verify: ssl.SSLContext | bool = ssl.create_default_context()
-        except Exception:
-            verify = True
-        async with httpx.AsyncClient(timeout=60.0, verify=verify) as client:
+        async with httpx.AsyncClient(timeout=60.0, verify=ssl_verify()) as client:
             response = await client.post(url, params={"key": agent.api_key}, json=payload)
             if not response.is_success:
                 logger.warning("Gemini TTS unavailable: %s %s", response.status_code, response.text[:200])

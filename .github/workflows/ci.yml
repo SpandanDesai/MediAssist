@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (pytest)
+    runs-on: ubuntu-latest
+    # A real MongoDB is provided so the driver/connection path can be exercised
+    # end-to-end; the suite itself also runs against the in-memory fallback store.
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.adminCommand({ ping: 1 }).ok' || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      MONGODB_URI: mongodb://localhost:27017/mediassist_ci
+      MONGODB_DATABASE: mediassist_ci
+      SECRET_KEY: ci-only-secret-key-not-for-production
+      ENVIRONMENT: development
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Connectivity smoke (Mongo service reachable)
+        run: |
+          python - <<'PY'
+          import asyncio, os
+          from motor.motor_asyncio import AsyncIOMotorClient
+
+          async def main():
+              client = AsyncIOMotorClient(os.environ["MONGODB_URI"], serverSelectionTimeoutMS=5000)
+              await client.admin.command("ping")
+              print("Mongo reachable")
+              client.close()
+
+          asyncio.run(main())
+          PY
+
+      - name: Run tests
+        run: pytest -q
+
+  frontend:
+    name: Frontend (typecheck, test, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Unit tests
+        run: npm run test
+
+      - name: Build
+        run: npm run build

@@ -14,6 +14,28 @@ def _iso(value: Any) -> str:
     return str(value or "")
 
 
+def str_list(value: Any) -> list[str]:
+    """Coerce a stored value into a clean list of non-empty strings."""
+    if not isinstance(value, list):
+        return []
+    return [str(item).strip() for item in value if item and str(item).strip()]
+
+
+def str_list_unique(value: Any) -> list[str]:
+    """Clean a list of strings and de-duplicate case-insensitively.
+
+    Keeps the first spelling seen (e.g. treats 'Aspirin' and 'aspirin' alike).
+    """
+    seen: set[str] = set()
+    out: list[str] = []
+    for item in str_list(value):
+        key = item.lower()
+        if key not in seen:
+            seen.add(key)
+            out.append(item)
+    return out
+
+
 def serialize_user(document: dict[str, Any]) -> UserOut:
     return UserOut(
         id=str(document.get("_id") or document.get("id")),
@@ -27,6 +49,8 @@ def serialize_user(document: dict[str, Any]) -> UserOut:
         chronic_diseases=document.get("chronic_diseases"),
         current_medications=document.get("current_medications"),
         emergency_contact=document.get("emergency_contact"),
+        allergy_list=str_list(document.get("allergy_list")),
+        medication_list=str_list(document.get("medication_list")),
     )
 
 
@@ -44,6 +68,12 @@ def profile_context(document: dict[str, Any]) -> str:
         value = document.get(key)
         if value:
             parts.append(f"{label}: {value}")
+    structured_allergies = str_list(document.get("allergy_list"))
+    if structured_allergies:
+        parts.append("Known allergies (structured): " + ", ".join(structured_allergies))
+    structured_medications = str_list(document.get("medication_list"))
+    if structured_medications:
+        parts.append("Current medications (structured): " + ", ".join(structured_medications))
     return "\n".join(parts)
 
 
@@ -102,4 +132,7 @@ def serialize_conversation(document: dict[str, Any], *, include_messages: bool =
         preview=document.get("preview"),
         updated_at=_iso(document.get("updated_at") or document.get("created_at")),
         messages=messages,
+        modality=document.get("modality"),
+        tags=str_list(document.get("tags")),
+        archived=bool(document.get("archived")),
     )

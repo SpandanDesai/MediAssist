@@ -11,6 +11,7 @@ from app.db.database import database
 from app.deps import CurrentUser
 from app.schemas.chat import ImageAnalysisResult
 from app.services.ai_service import consult_image
+from app.services.conversations import append_messages
 from app.services.rate_limit import client_key, upload_limiter
 from app.services.validation import validate_image_upload
 
@@ -49,23 +50,24 @@ async def analyze_image(
             "title": title,
             "preview": preview,
             "modality": "image",
-            "messages": [
-                {
-                    "id": str(uuid4()),
-                    "role": "user",
-                    "content": notes or "Uploaded a medical image for educational analysis.",
-                    "created_at": now,
-                },
-                {
-                    "id": str(uuid4()),
-                    "role": "assistant",
-                    "content": result.response,
-                    "created_at": now,
-                    "analysis": result.model_dump(),
-                },
-            ],
+            "message_count": 0,
             "updated_at": now,
         },
     )
-    result.conversation_id = str(created["_id"])
+    conversation_id = str(created["_id"])
+    user_message = {
+        "id": str(uuid4()),
+        "role": "user",
+        "content": notes or "Uploaded a medical image for educational analysis.",
+        "created_at": now,
+    }
+    assistant_message = {
+        "id": str(uuid4()),
+        "role": "assistant",
+        "content": result.response,
+        "created_at": now,
+        "analysis": result.model_dump(),
+    }
+    await append_messages(conversation_id, str(user["_id"]), [user_message, assistant_message])
+    result.conversation_id = conversation_id
     return result

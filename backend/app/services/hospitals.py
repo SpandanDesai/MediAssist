@@ -15,6 +15,9 @@ from app.schemas.hospitals import HospitalListResponse, HospitalOut
 logger = logging.getLogger(__name__)
 
 _cache: dict[str, tuple[float, HospitalListResponse]] = {}
+# Simple circuit breaker: after an Overpass failure, short-circuit to the offline
+# fallback for a cooldown window instead of paying the full timeout every request.
+_circuit_open_until: float = 0.0
 
 
 def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -82,12 +85,17 @@ def _fallback_hospitals(lat: float, lng: float) -> HospitalListResponse:
 
 
 async def find_nearby_hospitals(lat: float, lng: float, radius: int = 5000) -> HospitalListResponse:
+    global _circuit_open_until
+    now = time.time()
     settings = get_settings()
     cache_key = f"{round(lat, 3)}:{round(lng, 3)}:{radius}"
     cached = _cache.get(cache_key)
-    now = time.time()
     if cached and now - cached[0] < settings.hospital_cache_ttl_seconds:
         return cached[1]
+
+    # Circuit open from a recent failure -> serve the deterministic fallback quickly.
+    if now < _circuit_open_until:
+        return _fallback_hospitals(lat, lng)
 
     query = f"""
     [out:json][timeout:25];
@@ -104,13 +112,15 @@ async def find_nearby_hospitals(lat: float, lng: float, radius: int = 5000) -> H
     """
 
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=settings.overpass_timeout_seconds) as client:
             response = await client.post(settings.overpass_url, data={"data": query})
             response.raise_for_status()
             payload = response.json()
     except Exception as exc:
         logger.warning("Overpass lookup failed: %s", exc)
+        _circuit_open_until = time.time() + settings.overpass_circuit_cooldown_seconds
         result = _fallback_hospitals(lat, lng)
+        # Do not cache a failure long; the TTL still applies so retries stay cheap.
         _cache[cache_key] = (now, result)
         return result
 

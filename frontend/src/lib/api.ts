@@ -1,9 +1,12 @@
 import axios, { type AxiosRequestConfig } from "axios";
 import type {
+  ChatMessage,
   ChatResponse,
   Conversation,
+  HealthStats,
   Hospital,
   ImageAnalysis,
+  Reminder,
   User,
   VoiceResponse,
 } from "../types";
@@ -14,17 +17,12 @@ const baseURL = (
   "http://localhost:8000"
 ).replace(/\/$/, "");
 
-const TOKEN_KEY = "mediassist.access_token";
-
+// Authentication is cookie-based: the API sets an httpOnly session cookie on login,
+// which the browser attaches automatically. No token is stored in JavaScript.
 export const api = axios.create({
   baseURL,
   timeout: 120000,
-});
-
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem(TOKEN_KEY);
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
+  withCredentials: true,
 });
 
 export function apiErrorMessage(error: unknown, fallback = "Something went wrong. Please try again.") {
@@ -71,6 +69,8 @@ function normalizeUser(raw: Partial<User> & { username?: string; full_name?: str
     chronic_diseases: raw.chronic_diseases ?? null,
     current_medications: raw.current_medications ?? null,
     emergency_contact: raw.emergency_contact ?? null,
+    allergy_list: Array.isArray(raw.allergy_list) ? raw.allergy_list.map(String) : [],
+    medication_list: Array.isArray(raw.medication_list) ? raw.medication_list.map(String) : [],
   };
 }
 
@@ -151,6 +151,9 @@ function normalizeConversation(raw: Record<string, unknown>): Conversation {
     preview: typeof raw.preview === "string" ? raw.preview : undefined,
     updated_at: String(raw.updated_at || raw.created_at || raw.timestamp || new Date().toISOString()),
     messages,
+    modality: typeof raw.modality === "string" ? raw.modality : undefined,
+    tags: Array.isArray(raw.tags) ? raw.tags.map(String) : [],
+    archived: Boolean(raw.archived),
   };
 }
 
@@ -191,6 +194,10 @@ export const profileApi = {
     const response = await api.delete<{ status: string; message: string }>("/api/profile");
     return response.data;
   },
+  async exportData() {
+    const response = await api.get("/api/profile/export", { responseType: "blob" });
+    return response.data as Blob;
+  },
 };
 
 export const chatApi = {
@@ -211,6 +218,12 @@ export const medicationApi = {
     const response = await api.post<{ requires_professional_guidance: boolean }>("/api/medication/check", { text });
     return response.data.requires_professional_guidance;
   },
+  async review(text: string) {
+    const response = await api.post<Record<string, unknown> | null>("/api/medication/review", { text });
+    const raw = response.data;
+    if (!raw) return null;
+    return normalizeChat(raw);
+  },
 };
 
 export const historyApi = {
@@ -224,6 +237,52 @@ export const historyApi = {
   },
   async remove(id: string) {
     await api.delete(`/api/history/${encodeURIComponent(id)}`);
+  },
+  async update(id: string, payload: { title?: string; tags?: string[]; archived?: boolean }) {
+    const response = await api.patch<Record<string, unknown>>(`/api/history/${encodeURIComponent(id)}`, payload);
+    return normalizeConversation(unwrap(response.data) as Record<string, unknown>);
+  },
+  async messages(id: string) {
+    const response = await api.get<unknown>(`/api/history/${encodeURIComponent(id)}/messages`);
+    const raw = unwrap(response.data) as { messages?: unknown[] } | unknown[];
+    const list = Array.isArray(raw) ? raw : raw.messages || [];
+    return list
+      .filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object"))
+      .map((item, index) => {
+        const role: "user" | "assistant" = item.role === "assistant" ? "assistant" : "user";
+        return {
+          id: String(item.id || index),
+          role,
+          content: String(item.content || item.message || ""),
+          created_at: String(item.created_at || item.timestamp || new Date().toISOString()),
+          analysis: item.analysis ? normalizeChat(item as Record<string, unknown>) : undefined,
+        };
+      });
+  },
+  async messagesPage(id: string, beforeSeq?: number): Promise<{ messages: ChatMessage[]; hasMore: boolean; oldestSeq?: number }> {
+    const response = await api.get<unknown[]>(`/api/history/${encodeURIComponent(id)}/messages`, {
+      params: beforeSeq != null ? { before_seq: beforeSeq } : undefined,
+    });
+    const list = Array.isArray(response.data) ? response.data : [];
+    const messages: ChatMessage[] = list
+      .filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object"))
+      .map((item, index) => {
+        const role: "user" | "assistant" = item.role === "assistant" ? "assistant" : "user";
+        return {
+          id: String(item.id || index),
+          role,
+          content: String(item.content || item.message || ""),
+          created_at: String(item.created_at || item.timestamp || new Date().toISOString()),
+          analysis: item.analysis ? normalizeChat(item as Record<string, unknown>) : undefined,
+        };
+      });
+    const oldestHeader = response.headers["x-oldest-seq"];
+    const oldestSeq = typeof oldestHeader === "string" && oldestHeader ? Number(oldestHeader) : undefined;
+    return {
+      messages,
+      hasMore: String(response.headers["x-has-more"]) === "true",
+      oldestSeq: Number.isFinite(oldestSeq as number) ? oldestSeq : undefined,
+    };
   },
 };
 
@@ -305,6 +364,31 @@ export const reportApi = {
   async download(id: string) {
     return api.get(`/api/reports/${encodeURIComponent(id)}/download`, { responseType: "blob" });
   },
+  async createShareLink(id: string) {
+    const response = await api.post<{ token: string; path: string; expires_in_minutes: number; share_id?: string | null; jti?: string | null }>(
+      `/api/reports/${encodeURIComponent(id)}/share`,
+    );
+    return response.data;
+  },
+  async listShareLinks(id: string) {
+    const response = await api.get<unknown[]>(`/api/reports/${encodeURIComponent(id)}/shares`);
+    const list = Array.isArray(response.data) ? response.data : [];
+    return list
+      .filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object"))
+      .map((item) => ({
+        share_id: String(item.share_id || ""),
+        jti: String(item.jti || ""),
+        revoked: Boolean(item.revoked),
+        access_count: Number(item.access_count || 0),
+        created_at: String(item.created_at || ""),
+      }));
+  },
+  async revokeShareLink(reportId: string, jti: string) {
+    const response = await api.delete<{ status: string }>(
+      `/api/reports/${encodeURIComponent(reportId)}/share/${encodeURIComponent(jti)}`,
+    );
+    return response.data;
+  },
 };
 
 function normalizeAssessment(raw: Record<string, unknown>) {
@@ -346,4 +430,68 @@ export const assessmentApi = {
   },
 };
 
-export { TOKEN_KEY, baseURL };
+export const statsApi = {
+  async get(window = 100): Promise<HealthStats> {
+    const response = await api.get<HealthStats>("/api/stats", { params: { window } });
+    return response.data;
+  },
+};
+
+export const remindersApi = {
+  async list(): Promise<Reminder[]> {
+    const response = await api.get<unknown>("/api/reminders");
+    const raw = unwrap(response.data) as unknown;
+    const list = Array.isArray(raw) ? raw : [];
+    return list.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object")).map((item) => ({
+      id: String(item.id || item._id || ""),
+      title: String(item.title || "Reminder"),
+      notes: typeof item.notes === "string" ? item.notes : null,
+      due_at: typeof item.due_at === "string" ? item.due_at : null,
+      done: Boolean(item.done),
+      created_at: String(item.created_at || new Date().toISOString()),
+    }));
+  },
+  async upcoming(days = 7): Promise<Reminder[]> {
+    const response = await api.get<unknown>("/api/reminders/upcoming", { params: { days } });
+    const raw = unwrap(response.data) as unknown;
+    const list = Array.isArray(raw) ? raw : [];
+    return list.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object")).map((item) => ({
+      id: String(item.id || item._id || ""),
+      title: String(item.title || "Reminder"),
+      notes: typeof item.notes === "string" ? item.notes : null,
+      due_at: typeof item.due_at === "string" ? item.due_at : null,
+      done: Boolean(item.done),
+      created_at: String(item.created_at || new Date().toISOString()),
+    }));
+  },
+  async create(payload: { title: string; notes?: string; due_at?: string }): Promise<Reminder> {
+    const response = await api.post<Record<string, unknown>>("/api/reminders", payload);
+    const item = response.data;
+    return {
+      id: String(item.id || item._id || ""),
+      title: String(item.title || "Reminder"),
+      notes: typeof item.notes === "string" ? item.notes : null,
+      due_at: typeof item.due_at === "string" ? item.due_at : null,
+      done: Boolean(item.done),
+      created_at: String(item.created_at || new Date().toISOString()),
+    };
+  },
+  async update(id: string, payload: { title?: string; notes?: string | null; due_at?: string | null; done?: boolean }) {
+    const response = await api.patch<Record<string, unknown>>(`/api/reminders/${encodeURIComponent(id)}`, payload);
+    const item = response.data;
+    return {
+      id: String(item.id || item._id || ""),
+      title: String(item.title || "Reminder"),
+      notes: typeof item.notes === "string" ? item.notes : null,
+      due_at: typeof item.due_at === "string" ? item.due_at : null,
+      done: Boolean(item.done),
+      created_at: String(item.created_at || new Date().toISOString()),
+    } as Reminder;
+  },
+  async remove(id: string) {
+    await api.delete(`/api/reminders/${encodeURIComponent(id)}`);
+  },
+};
+
+export { baseURL };
+

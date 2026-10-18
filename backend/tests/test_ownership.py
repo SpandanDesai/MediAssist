@@ -35,7 +35,7 @@ async def _create_user(email: str, name: str) -> tuple[dict, str]:
         {
             "name": name,
             "email": email,
-            "hashed_password": hash_password("SecretPassword123!"),
+            "password_hash": hash_password("SecretPassword123!"),
             "allergies": "Peanuts",
             "medical_history": "Mild asthma",
         },

@@ -70,11 +70,16 @@ class Database:
             return
         await self.database.users.create_index("email", unique=True)
         await self.database.conversations.create_index([("user_id", 1), ("updated_at", -1)])
+        await self.database.messages.create_index([("conversation_id", 1), ("seq", 1)])
+        await self.database.messages.create_index([("user_id", 1), ("conversation_id", 1)])
         await self.database.reports.create_index([("user_id", 1), ("created_at", -1)])
+        await self.database.report_shares.create_index("jti", unique=True)
+        await self.database.report_shares.create_index([("report_id", 1), ("user_id", 1)])
         await self.database.assessments.create_index([("user_id", 1), ("created_at", -1)])
         await self.database.images.create_index([("user_id", 1), ("created_at", -1)])
         # Data retention TTL: expire temporary image metadata after 90 days (7776000 seconds)
         await self.database.images.create_index("created_at", expireAfterSeconds=7776000)
+        await self.database.reminders.create_index([("user_id", 1), ("created_at", 1)])
 
     async def insert_one(self, collection: str, document: Document) -> Document:
         stored = deepcopy(document)
@@ -173,18 +178,55 @@ def _matches(document: Document, query: Document) -> bool:
         elif isinstance(expected, dict) and "$in" in expected:
             if actual not in expected["$in"]:
                 return False
+        elif isinstance(expected, dict) and any(op in expected for op in ("$lt", "$lte", "$gt", "$gte")):
+            if not _compare_operators(actual, expected):
+                return False
         elif actual != expected:
             return False
     return True
 
 
-def _sort_key(value: Any) -> tuple[int, str]:
-    """Total ordering across None, datetime, and string values for the memory store."""
+def _compare_operators(actual: Any, expected: dict[str, Any]) -> bool:
+    """Evaluate ``$lt``/``$lte``/``$gt``/``$gte`` for the memory store.
+
+    Missing fields never satisfy a range filter (mirrors MongoDB matching), and
+    comparisons use natural value ordering so numeric ``seq`` bounds behave correctly.
+    """
+    if actual is None:
+        return False
+    for op, bound in expected.items():
+        if op not in {"$lt", "$lte", "$gt", "$gte"}:
+            continue
+        try:
+            if op == "$lt" and not actual < bound:
+                return False
+            if op == "$lte" and not actual <= bound:
+                return False
+            if op == "$gt" and not actual > bound:
+                return False
+            if op == "$gte" and not actual >= bound:
+                return False
+        except TypeError:
+            return False
+    return True
+
+
+def _sort_key(value: Any) -> tuple[int, str, float]:
+    """Total ordering across None, numbers, datetimes, and strings for the memory store.
+
+    Numbers sort numerically (so integer fields like message ``seq`` order 2 before 10,
+    not lexicographically), datetimes by their ISO string, and everything else as text.
+    The leading tag keeps distinct types from being compared against each other.
+    """
     if value is None:
-        return (0, "")
+        return (0, "", 0.0)
+    if isinstance(value, bool):
+        return (1, "", float(value))
+    if isinstance(value, (int, float)):
+        return (2, "", float(value))
     if isinstance(value, datetime):
-        return (1, value.isoformat())
-    return (1, str(value))
+        return (3, value.isoformat(), 0.0)
+    return (4, str(value), 0.0)
 
 
 database = Database()

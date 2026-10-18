@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { Download, FileText } from "lucide-react";
+import { Download, FileText, Link2 } from "lucide-react";
 import { useToast } from "../components/Toast";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader } from "../components/ui/card";
 import { Skeleton } from "../components/ui/skeleton";
-import { apiErrorMessage, historyApi, reportApi } from "../lib/api";
+import { apiErrorMessage, baseURL, historyApi, reportApi } from "../lib/api";
 import { displayDate } from "../lib/utils";
 import type { Conversation } from "../types";
 
@@ -14,6 +14,7 @@ export function ReportsPage() {
   const [reports, setReports] = useState<Array<{ id: string; title: string; created_at: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [generatingId, setGeneratingId] = useState<string | null>(null);
+  const [sharingId, setSharingId] = useState<string | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -70,6 +71,31 @@ export function ReportsPage() {
     }
   }
 
+  async function createShareLink(id: string) {
+    setSharingId(id);
+    try {
+      const share = await reportApi.createShareLink(id);
+      const link = `${baseURL}${share.path}`;
+      let copied = false;
+      try {
+        await navigator.clipboard.writeText(link);
+        copied = true;
+      } catch {
+        // Clipboard may be unavailable (insecure context); show the link instead.
+        window.prompt("Copy this report link:", link);
+      }
+      showToast({
+        tone: "success",
+        title: copied ? "Share link copied" : "Share link ready",
+        message: `Anyone with this link can view the report for ${share.expires_in_minutes} minutes.`,
+      });
+    } catch (error) {
+      showToast({ tone: "error", title: "Could not create share link", message: apiErrorMessage(error) });
+    } finally {
+      setSharingId(null);
+    }
+  }
+
   return (
     <div className="mx-auto grid max-w-6xl gap-5 lg:grid-cols-2 animate-fade-up">
       <Card>
@@ -113,7 +139,10 @@ export function ReportsPage() {
                 <p className="truncate text-sm font-semibold">{report.title}</p>
                 <p className="text-[11px] text-slate-500">{displayDate(report.created_at)}</p>
               </div>
-              <Button size="sm" variant="ghost" onClick={() => downloadExisting(report.id)}><Download className="h-4 w-4" /></Button>
+              <div className="flex shrink-0 items-center gap-1">
+                <Button size="sm" variant="ghost" title="Create a temporary share link" disabled={sharingId === report.id} onClick={() => createShareLink(report.id)}><Link2 className="h-4 w-4" /></Button>
+                <Button size="sm" variant="ghost" onClick={() => downloadExisting(report.id)}><Download className="h-4 w-4" /></Button>
+              </div>
             </div>
           ))}
         </CardContent>

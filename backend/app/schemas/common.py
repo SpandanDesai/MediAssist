@@ -72,6 +72,9 @@ class ConversationSummary(BaseModel):
     preview: str | None = None
     updated_at: str
     messages: list[MessageOut] | None = None
+    modality: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    archived: bool = False
 
 
 class UserOut(BaseModel):
@@ -86,6 +89,10 @@ class UserOut(BaseModel):
     chronic_diseases: str | None = None
     current_medications: str | None = None
     emergency_contact: str | None = None
+    # Structured, machine-checkable ledgers kept alongside the free-text fields
+    # so existing profile consumers are unaffected.
+    allergy_list: list[str] = Field(default_factory=list)
+    medication_list: list[str] = Field(default_factory=list)
 
 
 class TokenResponse(BaseModel):

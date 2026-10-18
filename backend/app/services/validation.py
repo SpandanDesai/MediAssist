@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 
 from fastapi import HTTPException, UploadFile, status
+from starlette.concurrency import run_in_threadpool
 
 from app.core.config import get_settings
 
@@ -37,13 +38,12 @@ async def read_upload(file: UploadFile, *, max_bytes: int | None = None) -> byte
     return data
 
 
-async def validate_image_upload(file: UploadFile) -> tuple[bytes, str]:
-    content_type = (file.content_type or "").lower()
-    filename = (file.filename or "").lower()
-    if content_type not in {"image/png", "image/jpeg", "image/jpg"} and not filename.endswith((".png", ".jpg", ".jpeg")):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only PNG and JPEG images are supported.")
+def _sanitize_image(data: bytes) -> tuple[bytes, str]:
+    """Decode, verify, and re-encode an upload off the event loop (CPU-bound).
 
-    data = await read_upload(file)
+    Raises HTTPException on any invalid/non-PNG/JPEG payload so the calling
+    route surfaces a 400 exactly as before.
+    """
     try:
         from PIL import Image, ImageOps
 
@@ -75,6 +75,16 @@ async def validate_image_upload(file: UploadFile) -> tuple[bytes, str]:
         ) from exc
 
     return sanitized_data, mime
+
+
+async def validate_image_upload(file: UploadFile) -> tuple[bytes, str]:
+    content_type = (file.content_type or "").lower()
+    filename = (file.filename or "").lower()
+    if content_type not in {"image/png", "image/jpeg", "image/jpg"} and not filename.endswith((".png", ".jpg", ".jpeg")):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only PNG and JPEG images are supported.")
+
+    data = await read_upload(file)
+    return await run_in_threadpool(_sanitize_image, data)
 
 
 async def validate_audio_upload(file: UploadFile) -> tuple[bytes, str]:

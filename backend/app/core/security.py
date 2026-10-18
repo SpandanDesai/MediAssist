@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
 import jwt
 from jwt import InvalidTokenError
@@ -37,11 +38,6 @@ def create_access_token(subject: str, token_version: int = 0) -> str:
     return jwt.encode(payload, settings.secret_key, algorithm=ALGORITHM)
 
 
-def decode_access_token(token: str) -> str | None:
-    payload = decode_token_payload(token)
-    return payload.get("sub") if payload else None
-
-
 def decode_token_payload(token: str) -> dict | None:
     settings = get_settings()
     try:
@@ -49,3 +45,40 @@ def decode_token_payload(token: str) -> dict | None:
         return payload
     except InvalidTokenError:
         return None
+
+
+def create_share_token(report_id: str, user_id: str) -> str:
+    """Issue a short-lived, scoped token granting account-free report access.
+
+    A random ``jti`` identifies this specific link so it can later be revoked and
+    its access counted independently of other links for the same report.
+    """
+    settings = get_settings()
+    now = datetime.now(UTC)
+    expires_at = now + timedelta(minutes=settings.report_share_expire_minutes)
+    payload = {
+        "sub": report_id,
+        "uid": user_id,
+        "scope": "report-share",
+        "jti": uuid4().hex,
+        "exp": expires_at,
+        "iat": now,
+    }
+    return jwt.encode(payload, settings.secret_key, algorithm=ALGORITHM)
+
+
+def decode_share_token(token: str) -> dict | None:
+    """Validate a share token and return its payload, or None when invalid/expired."""
+    settings = get_settings()
+    try:
+        payload = jwt.decode(
+            token,
+            settings.secret_key,
+            algorithms=[ALGORITHM],
+            options={"require": ["exp"]},
+        )
+    except InvalidTokenError:
+        return None
+    if payload.get("scope") != "report-share":
+        return None
+    return payload

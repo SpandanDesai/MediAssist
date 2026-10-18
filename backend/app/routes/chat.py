@@ -12,6 +12,7 @@ from app.deps import CurrentUser
 from app.schemas.chat import ChatRequest
 from app.schemas.common import ConsultationResult
 from app.services.ai_service import consult_text
+from app.services.conversations import append_messages, get_history
 from app.services.emergency import enrich_emergency_with_location
 from app.services.rate_limit import client_key, consultation_limiter
 from app.utils.serializers import profile_context
@@ -36,9 +37,7 @@ async def chat(payload: ChatRequest, request: Request, user: CurrentUser) -> Con
             {"_id": payload.conversation_id, "user_id": str(user["_id"])},
         )
         if conversation:
-            for item in conversation.get("messages") or []:
-                if item.get("role") in {"user", "assistant"} and item.get("content"):
-                    history.append({"role": item["role"], "content": item["content"]})
+            history = await get_history(str(conversation["_id"]), str(user["_id"]), n=12)
 
     # Optional client-supplied context is appended to the profile block, never trusted as instructions.
     profile = profile_context(user)
@@ -50,7 +49,7 @@ async def chat(payload: ChatRequest, request: Request, user: CurrentUser) -> Con
     result = await consult_text(
         payload.message,
         conversation_id=payload.conversation_id,
-        history=history[-12:],
+        history=history,
         profile_context=merged_context,
     )
     if result.emergency:
@@ -71,18 +70,15 @@ async def chat(payload: ChatRequest, request: Request, user: CurrentUser) -> Con
     }
 
     if conversation:
-        messages = list(conversation.get("messages") or [])
-        messages.extend([user_message, assistant_message])
-        updated = await database.update_one(
+        conversation_id = str(conversation["_id"])
+        await database.update_one(
             "conversations",
-            {"_id": conversation["_id"]},
+            {"_id": conversation_id},
             {
-                "messages": messages,
                 "preview": payload.message[:180],
                 "title": conversation.get("title") or _title_from_message(payload.message),
             },
         )
-        conversation_id = str((updated or conversation)["_id"])
     else:
         created = await database.insert_one(
             "conversations",
@@ -91,11 +87,13 @@ async def chat(payload: ChatRequest, request: Request, user: CurrentUser) -> Con
                 "title": _title_from_message(payload.message),
                 "preview": payload.message[:180],
                 "modality": "chat",
-                "messages": [user_message, assistant_message],
+                "message_count": 0,
                 "updated_at": now,
             },
         )
         conversation_id = str(created["_id"])
+
+    await append_messages(conversation_id, str(user["_id"]), [user_message, assistant_message])
 
     result.conversation_id = conversation_id
     return result

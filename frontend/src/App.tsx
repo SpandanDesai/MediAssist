@@ -11,6 +11,7 @@ import { ImageAnalysisPage } from "./pages/ImageAnalysisPage";
 import { LandingPage } from "./pages/LandingPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { ProfilePage } from "./pages/ProfilePage";
+import { RemindersPage } from "./pages/RemindersPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { VoicePage } from "./pages/VoicePage";
@@ -53,6 +54,7 @@ export default function App() {
           <Route path="/image-analysis" element={<ImageAnalysisPage />} />
           <Route path="/hospitals" element={<HospitalsPage />} />
           <Route path="/assessment" element={<AssessmentPage />} />
+          <Route path="/reminders" element={<RemindersPage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/settings" element={<SettingsPage />} />

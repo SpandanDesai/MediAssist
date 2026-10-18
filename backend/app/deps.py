@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from app.core.config import get_settings
 from app.core.security import decode_token_payload
 from app.db.database import database
 
@@ -14,11 +15,21 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 
 async def get_current_user(
+    request: Request,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
 ) -> dict[str, Any]:
-    if credentials is None or credentials.scheme.lower() != "bearer":
+    # Prefer an explicit Authorization header (API clients, tests); otherwise fall
+    # back to the httpOnly session cookie set at login for browser frontends.
+    token: str | None = None
+    if credentials is not None and credentials.scheme.lower() == "bearer":
+        token = credentials.credentials
+    else:
+        token = request.cookies.get(get_settings().auth_cookie_name)
+
+    if not token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required.")
-    payload = decode_token_payload(credentials.credentials)
+
+    payload = decode_token_payload(token)
     if not payload:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token.")
     user_id = payload.get("sub")

@@ -30,7 +30,10 @@ def analyze_symptoms(message: str, conversation_id: str | None = None, profile_c
             PossibleCondition(name="Influenza-like illness (heuristic match)", confidence=None, description="Influenza can cause fever, body aches, and respiratory symptoms."),
             PossibleCondition(name="Streptococcal pharyngitis / strep throat (heuristic match)", confidence=None, description="Bacterial throat infection is possible when sore throat is prominent."),
         ]
-        urgency = "medium" if "fever" in text and any(w in text for w in ("three", "3", "four", "4", "week", "worsen")) else "medium"
+        # Respiratory symptom clusters stay medium here; the deterministic
+        # emergency screen (detect_emergency) already escalates red-flag phrases
+        # such as breathlessness before this branch is ever reached.
+        urgency = "medium"
         recommendation = "Supportive care (rest, fluids, fever management as advised by a clinician/pharmacist) may help. Visit a doctor if symptoms worsen, persist beyond a few days, or breathing becomes difficult."
         follow_ups = [
             "What is your current temperature if measured?",

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 
 from app.schemas.common import (
@@ -11,6 +12,8 @@ from app.schemas.common import (
     NearbyFacility,
     PossibleCondition,
 )
+
+logger = logging.getLogger(__name__)
 
 EMERGENCY_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("chest pain / cardiac concern", re.compile(r"\b(chest pain|heart attack|crushing (chest|pain)|pain radiating to (arm|jaw))\b", re.I)),
@@ -205,5 +208,8 @@ async def enrich_emergency_with_location(
             result.conversation_id,
             nearest_hospitals=facilities,
         )
-    except Exception:
+    except Exception as exc:
+        # Fall back to the emergency response without location data, but leave a
+        # trace so a persistent facility-lookup failure is diagnosable.
+        logger.warning("Emergency location enrichment failed: %s", type(exc).__name__)
         return result
