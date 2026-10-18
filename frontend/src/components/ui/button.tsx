@@ -3,15 +3,16 @@ import { forwardRef } from "react";
 import { cn } from "../../lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 dark:focus-visible:ring-offset-slate-950",
+  "inline-flex items-center justify-center gap-2 rounded-lg text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-canvas disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
       variant: {
-        primary: "bg-sky-500 text-white shadow-glow hover:bg-sky-600 active:scale-[.98]",
-        secondary: "bg-emerald-500 text-white shadow-sm hover:bg-emerald-600 active:scale-[.98]",
-        outline: "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800",
-        ghost: "text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white",
-        danger: "bg-rose-500 text-white hover:bg-rose-600",
+        primary: "bg-brand text-brand-fg hover:bg-brand-strong active:scale-[.99]",
+        secondary: "bg-surface text-ink border border-rule hover:bg-surface-alt active:scale-[.99]",
+        outline: "border border-rule bg-surface text-ink hover:bg-surface-alt",
+        ghost: "text-ink-2 hover:bg-surface-alt hover:text-ink",
+        danger: "bg-danger text-danger-fg hover:opacity-90",
+        "danger-outline": "border border-danger/40 bg-surface text-danger hover:bg-danger-tint",
       },
       size: {
         sm: "h-9 px-3 text-xs",

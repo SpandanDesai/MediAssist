@@ -21,12 +21,13 @@ export function displayDate(value?: string) {
 export function urgencyClass(urgency?: Urgency) {
   switch (urgency?.toLowerCase()) {
     case "emergency":
+      return "bg-emergency-tint text-emergency ring-emergency/25";
     case "high":
-      return "bg-rose-100 text-rose-700 ring-rose-200 dark:bg-rose-500/15 dark:text-rose-300 dark:ring-rose-500/25";
+      return "bg-high-tint text-high ring-high/25";
     case "medium":
-      return "bg-amber-100 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/25";
+      return "bg-med-tint text-med ring-med/25";
     default:
-      return "bg-emerald-100 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/25";
+      return "bg-low-tint text-low ring-low/25";
   }
 }
 

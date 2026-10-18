@@ -46,13 +46,7 @@ export function VoicePage() {
           setMessages((current) => [
             ...current,
             { id: `u-${Date.now()}`, role: "user", content: result.transcript || "Voice message", created_at: now },
-            {
-              id: `a-${Date.now()}`,
-              role: "assistant",
-              content: result.response,
-              created_at: now,
-              analysis: result,
-            },
+            { id: `a-${Date.now()}`, role: "assistant", content: result.response, created_at: now, analysis: result },
           ]);
           if (result.conversation_id) setConversationId(result.conversation_id);
           if (result.audio_url) {
@@ -80,13 +74,13 @@ export function VoicePage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-5 animate-fade-up">
+    <div className="mx-auto max-w-4xl space-y-5">
       {emergencyOpen && <EmergencyAlert onClose={() => setEmergencyOpen(false)} />}
       <Card>
         <CardHeader>
           <div>
-            <p className="text-sm font-bold">Voice consultation</p>
-            <p className="mt-1 text-xs text-slate-500">Speak naturally. We transcribe, respond, and can read the answer aloud when TTS is configured.</p>
+            <p className="text-sm font-bold text-ink">Voice consultation</p>
+            <p className="mt-1 text-xs text-ink-2">Speak naturally. We transcribe, respond, and can read the answer aloud when TTS is configured.</p>
           </div>
         </CardHeader>
         <CardContent className="flex flex-col items-center gap-6 py-10">
@@ -94,20 +88,15 @@ export function VoicePage() {
             {Array.from({ length: 12 }).map((_, index) => (
               <span
                 key={index}
-                className={`w-2 rounded-full bg-sky-500 origin-bottom ${recording ? "animate-waveform" : "h-3 opacity-40"}`}
+                className={`w-2 origin-bottom rounded-full bg-brand ${recording ? "animate-waveform" : "h-3 opacity-30"}`}
                 style={{ height: recording ? `${12 + ((index * 7) % 28)}px` : undefined, animationDelay: `${index * 0.05}s` }}
               />
             ))}
           </div>
-          <Button
-            size="lg"
-            variant={recording ? "danger" : "primary"}
-            onClick={recording ? stopRecording : startRecording}
-            disabled={pending}
-          >
+          <Button size="lg" variant={recording ? "danger" : "primary"} onClick={recording ? stopRecording : startRecording} disabled={pending}>
             {recording ? <><Square className="h-4 w-4" />Stop recording</> : <><Mic className="h-4 w-4" />Start recording</>}
           </Button>
-          <p className="max-w-md text-center text-xs leading-5 text-slate-500">
+          <p className="max-w-md text-center text-[13px] leading-5 text-ink-2 font-read">
             If you mention emergency symptoms such as chest pain or difficulty breathing, MediAssist will interrupt normal consultation and urge immediate care.
           </p>
         </CardContent>
@@ -116,16 +105,16 @@ export function VoicePage() {
       <Card>
         <CardHeader>
           <div>
-            <p className="text-sm font-bold">Conversation</p>
-            <p className="mt-1 text-xs text-slate-500">Transcript and educational responses</p>
+            <p className="text-sm font-bold text-ink">Conversation</p>
+            <p className="mt-1 text-xs text-ink-2">Transcript and educational responses</p>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {messages.length === 0 && !pending && <p className="py-8 text-center text-sm text-slate-500">Your voice consultation will appear here.</p>}
+          {messages.length === 0 && !pending && <p className="py-8 text-center text-sm text-ink-2">Your voice consultation will appear here.</p>}
           {messages.map((message) => (
-            <div key={message.id} className={`rounded-2xl p-4 ${message.role === "user" ? "bg-sky-50 dark:bg-sky-950/20" : "bg-slate-50 dark:bg-slate-950/40"}`}>
-              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">{message.role === "user" ? "You said" : "MediAssist"}</p>
-              {message.role === "assistant" ? <div className="mt-2"><MarkdownMessage>{message.content}</MarkdownMessage><HealthAnalysisCard analysis={message.analysis} /></div> : <p className="mt-2 text-sm leading-6">{message.content}</p>}
+            <div key={message.id} className={`rounded-xl p-4 ${message.role === "user" ? "bg-brand-tint" : "bg-surface"}`}>
+              <p className="text-[11px] font-bold uppercase tracking-wide text-ink-2">{message.role === "user" ? "You said" : "MediAssist"}</p>
+              {message.role === "assistant" ? <div className="mt-2"><MarkdownMessage>{message.content}</MarkdownMessage><HealthAnalysisCard analysis={message.analysis} /></div> : <p className="mt-2 text-sm leading-6 text-ink font-read">{message.content}</p>}
             </div>
           ))}
           {pending && <TypingIndicator />}

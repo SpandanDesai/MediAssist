@@ -11,10 +11,10 @@ export function MedicationNotice({
   return (
     <div
       role="note"
-      className="flex flex-wrap items-center gap-3 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900 dark:border-violet-900/70 dark:bg-violet-950/30 dark:text-violet-100"
+      className="flex flex-wrap items-center gap-3 rounded-xl border border-rule bg-surface-alt px-4 py-3 text-sm text-ink"
     >
-      <Pill className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-      <p className="min-w-0 flex-1">MediAssist can't advise on doses or changing medicines. A pharmacist or your prescriber can.</p>
+      <Pill className="mt-0.5 h-4 w-4 shrink-0 text-ink-2" aria-hidden="true" />
+      <p className="min-w-0 flex-1 font-read">MediAssist can't advise on doses or changing medicines. A pharmacist or your prescriber can.</p>
       {onReview && (
         <Button
           type="button"
@@ -22,7 +22,7 @@ export function MedicationNotice({
           variant="outline"
           onClick={onReview}
           disabled={reviewing}
-          className="shrink-0 border-violet-300 text-violet-800 hover:bg-violet-100 dark:border-violet-700 dark:text-violet-100"
+          className="shrink-0"
         >
           {reviewing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ShieldAlert className="h-4 w-4" aria-hidden="true" />}
           Check my profile

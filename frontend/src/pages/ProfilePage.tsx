@@ -3,7 +3,7 @@ import { Download, Plus, Save, X } from "lucide-react";
 import { useToast } from "../components/Toast";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader } from "../components/ui/card";
-import { Input, Label, Textarea } from "../components/ui/form";
+import { Input, Label, Select, Textarea } from "../components/ui/form";
 import { useAuth } from "../contexts/AuthContext";
 import { apiErrorMessage, profileApi } from "../lib/api";
 
@@ -35,7 +35,7 @@ function LedgerEditor({
   return (
     <div className="sm:col-span-2">
       <Label>{label}</Label>
-      <p className="-mt-1 mb-2 text-[11px] text-slate-500">{hint}</p>
+      <p className="-mt-1 mb-2 text-[11px] text-ink-2">{hint}</p>
       <form onSubmit={add} className="flex gap-2">
         <Input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder={placeholder} />
         <Button type="submit" variant="outline" className="shrink-0"><Plus className="h-4 w-4" />Add</Button>
@@ -43,9 +43,9 @@ function LedgerEditor({
       {items.length > 0 && (
         <ul className="mt-3 flex flex-wrap gap-2">
           {items.map((item) => (
-            <li key={item} className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700 dark:bg-sky-500/15 dark:text-sky-300">
+            <li key={item} className="inline-flex items-center gap-1.5 rounded-full bg-surface-alt px-3 py-1 text-xs font-medium text-ink">
               {item}
-              <button type="button" onClick={() => onChange(items.filter((entry) => entry !== item))} aria-label={`Remove ${item}`} className="rounded-full p-0.5 hover:bg-sky-100 dark:hover:bg-sky-500/25">
+              <button type="button" onClick={() => onChange(items.filter((entry) => entry !== item))} aria-label={`Remove ${item}`} className="rounded-full p-1 text-ink-2 hover:bg-danger-tint hover:text-danger">
                 <X className="h-3 w-3" />
               </button>
             </li>
@@ -124,12 +124,12 @@ export function ProfilePage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl animate-fade-up">
+    <div className="mx-auto max-w-3xl space-y-8">
       <Card>
         <CardHeader>
           <div>
-            <p className="text-sm font-bold">Your profile</p>
-            <p className="mt-1 text-xs text-slate-500">Optional medical details help personalize educational guidance. They are never a substitute for clinical records.</p>
+            <p className="text-sm font-bold text-ink">Your profile</p>
+            <p className="mt-1 text-xs text-ink-2">Optional medical details help personalize educational guidance. They are never a substitute for clinical records.</p>
           </div>
         </CardHeader>
         <CardContent>
@@ -139,18 +139,18 @@ export function ProfilePage() {
             <div><Label htmlFor="age">Age</Label><Input id="age" type="number" min={0} max={120} value={form.age} onChange={update("age")} /></div>
             <div>
               <Label htmlFor="gender">Gender</Label>
-              <select id="gender" value={form.gender} onChange={update("gender")} className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm dark:border-slate-700 dark:bg-slate-950">
+              <Select id="gender" value={form.gender} onChange={update("gender")}>
                 <option value="">Prefer not to say</option>
                 <option value="female">Female</option>
                 <option value="male">Male</option>
                 <option value="nonbinary">Non-binary</option>
                 <option value="other">Other</option>
-              </select>
+              </Select>
             </div>
             <div><Label htmlFor="blood_group">Blood group</Label><Input id="blood_group" value={form.blood_group} onChange={update("blood_group")} placeholder="e.g. O+" /></div>
             <div className="sm:col-span-2"><Label htmlFor="allergies">Known allergies</Label><Textarea id="allergies" value={form.allergies} onChange={update("allergies")} placeholder="Medications, foods, environmental…" /></div>
-            <div className="sm:col-span-2"><Label htmlFor="medical_history">Medical history</Label><Textarea id="medical_history" value={form.medical_history} onChange={update("medical_history")} /></div>
-            <div className="sm:col-span-2"><Label htmlFor="chronic_diseases">Chronic diseases</Label><Textarea id="chronic_diseases" value={form.chronic_diseases} onChange={update("chronic_diseases")} /></div>
+            <div className="sm:col-span-2"><Label htmlFor="medical_history">Medical history</Label><Textarea id="medical_history" value={form.medical_history} onChange={update("medical_history")} placeholder="Past conditions, surgeries, hospitalisations…" /></div>
+            <div className="sm:col-span-2"><Label htmlFor="chronic_diseases">Chronic diseases</Label><Textarea id="chronic_diseases" value={form.chronic_diseases} onChange={update("chronic_diseases")} placeholder="e.g. Type 2 diabetes, asthma…" /></div>
             <div className="sm:col-span-2"><Label htmlFor="current_medications">Current medications</Label><Textarea id="current_medications" value={form.current_medications} onChange={update("current_medications")} placeholder="List any daily medications, supplements, or recent antibiotics…" /></div>
             <LedgerEditor label="Allergy ledger" hint="Add each allergy separately so the assistant can check new advice against them." placeholder="e.g. Penicillin" items={allergyList} onChange={setAllergyList} />
             <LedgerEditor label="Medication ledger" hint="Structured list used for conflict and dosing safety checks." placeholder="e.g. Metformin" items={medicationList} onChange={setMedicationList} />
@@ -160,11 +160,11 @@ export function ProfilePage() {
         </CardContent>
       </Card>
 
-      <Card className="mt-8">
+      <Card>
         <CardHeader>
           <div>
-            <p className="text-sm font-bold">Your data</p>
-            <p className="mt-1 text-xs text-slate-500">Download a copy of your profile, conversations, reports, assessments, images, and reminders as JSON.</p>
+            <p className="text-sm font-bold text-ink">Your data</p>
+            <p className="mt-1 text-xs text-ink-2">Download a copy of your profile, conversations, reports, assessments, images, and reminders as JSON.</p>
           </div>
         </CardHeader>
         <CardContent>
@@ -172,20 +172,19 @@ export function ProfilePage() {
         </CardContent>
       </Card>
 
-      <Card className="mt-8 border-rose-200 dark:border-rose-900/50">
+      <Card className="border-danger/30">
         <CardHeader>
           <div>
-            <p className="text-sm font-bold text-rose-600 dark:text-rose-400">Danger zone</p>
-            <p className="mt-1 text-xs text-slate-500">Permanently delete your account and all associated conversations, medical reports, images, and health data.</p>
+            <p className="text-sm font-bold text-danger">Danger zone</p>
+            <p className="mt-1 text-xs text-ink-2">Permanently delete your account and all associated conversations, medical reports, images, and health data.</p>
           </div>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs text-slate-600 dark:text-slate-400">This action cannot be undone. All stored consultations and reports will be wiped immediately.</p>
+            <p className="text-xs text-ink-2">This action cannot be undone. All stored consultations and reports will be wiped immediately.</p>
             <Button
               type="button"
-              variant="outline"
-              className="border-rose-300 text-rose-600 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-400 dark:hover:bg-rose-950/50"
+              variant="danger-outline"
               onClick={async () => {
                 if (window.confirm("Are you sure you want to permanently delete your account and all health history? This cannot be undone.")) {
                   try {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ExternalLink, MapPinned, Navigation, Phone } from "lucide-react";
+import { ExternalLink, MapPinned, Navigation, Phone, ShieldAlert } from "lucide-react";
 import { useToast } from "../components/Toast";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader } from "../components/ui/card";
@@ -14,14 +14,13 @@ function osmEmbed(lat: number, lng: number, hospitals: Hospital[]) {
   const maxLon = lng + delta;
   const maxLat = lat + delta;
   const markers = [`${lat}%2C${lng}`]
-    .concat(
-      hospitals
-        .filter((item) => item.latitude && item.longitude)
-        .slice(0, 8)
-        .map((item) => `${item.latitude}%2C${item.longitude}`),
-    )
+    .concat(hospitals.filter((item) => item.latitude && item.longitude).slice(0, 8).map((item) => `${item.latitude}%2C${item.longitude}`))
     .join("%7C");
   return `https://www.openstreetmap.org/export/embed.html?bbox=${minLon}%2C${minLat}%2C${maxLon}%2C${maxLat}&layer=mapnik&marker=${markers}`;
+}
+
+function isFallback(hospital: Hospital) {
+  return (hospital.address || "").toLowerCase().includes("offline fallback");
 }
 
 export function HospitalsPage() {
@@ -65,63 +64,66 @@ export function HospitalsPage() {
     locate();
   }, []);
 
+  const showingFallback = hospitals.some(isFallback);
+
   return (
-    <div className="space-y-5 animate-fade-up">
+    <div className="space-y-5">
       <Card>
         <CardHeader>
           <div>
-            <p className="text-sm font-bold">Nearby hospitals & clinics</p>
-            <p className="mt-1 text-xs text-slate-500">Powered by OpenStreetMap / Overpass using your browser location.</p>
+            <p className="text-sm font-bold text-ink">Nearby hospitals & clinics</p>
+            <p className="mt-1 text-xs text-ink-2">Powered by OpenStreetMap / Overpass using your browser location.</p>
           </div>
           <Button onClick={locate} disabled={loading}><MapPinned className="h-4 w-4" />Refresh location</Button>
         </CardHeader>
-        <CardContent>
-          {geoError && <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-100">{geoError}</div>}
+        <CardContent className="space-y-4">
+          {geoError && <div className="rounded-xl border border-med/30 bg-med-tint px-4 py-3 text-sm text-ink font-read">{geoError}</div>}
+          {showingFallback && (
+            <div className="flex items-start gap-2.5 rounded-xl border border-med/30 bg-med-tint px-4 py-3 text-sm text-ink font-read">
+              <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-med" />
+              <p><strong className="text-med">Showing approximate offline results — not verified.</strong> These are stand-in facilities, not confirmed care near you. Refresh for live OpenStreetMap data.</p>
+            </div>
+          )}
           {coords ? (
-            <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800">
-              <iframe
-                title="Nearby healthcare map"
-                className="h-[360px] w-full"
-                src={osmEmbed(coords.lat, coords.lng, hospitals)}
-              />
+            <div className="overflow-hidden rounded-xl border border-rule">
+              <iframe title="Nearby healthcare map" className="h-[360px] w-full" src={osmEmbed(coords.lat, coords.lng, hospitals)} />
             </div>
           ) : (
             <Skeleton className="h-[360px]" />
           )}
+          <p className="text-[13px] text-ink-2">Your location is read on this device and only used to find nearby care. Results are approximate — always confirm before travelling.</p>
         </CardContent>
       </Card>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {loading && Array.from({ length: 6 }).map((_, index) => <Skeleton key={index} className="h-36" />)}
-        {!loading && hospitals.map((hospital) => (
-          <Card key={`${hospital.id}-${hospital.name}`} className="p-5">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-sm font-bold">{hospital.name}</p>
-                <p className="mt-1 text-xs font-medium text-sky-600">{hospital.type || "Healthcare facility"}</p>
+        {!loading && hospitals.map((hospital) => {
+          const emergency = (hospital.type || "").toLowerCase() === "emergency";
+          return (
+            <Card key={`${hospital.id}-${hospital.name}`} className="p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-ink">{hospital.name}</p>
+                  <p className={`mt-1 text-xs font-semibold ${emergency ? "text-high" : "text-ink-2"}`}>{hospital.type || "Healthcare facility"}</p>
+                </div>
+                {hospital.distance != null && <span className="shrink-0 rounded-full bg-surface-alt px-2.5 py-1 text-[11px] font-bold tabular-nums text-ink-2">{typeof hospital.distance === "number" ? `${hospital.distance.toFixed(1)} km` : hospital.distance}</span>}
               </div>
-              {hospital.distance != null && <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold dark:bg-slate-800">{typeof hospital.distance === "number" ? `${hospital.distance.toFixed(1)} km` : hospital.distance}</span>}
-            </div>
-            {hospital.address && <p className="mt-3 text-xs leading-5 text-slate-500">{hospital.address}</p>}
-            <div className="mt-4 flex flex-wrap gap-2">
-              {hospital.phone && <a href={`tel:${hospital.phone}`} className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 px-3 text-xs font-semibold dark:border-slate-700"><Phone className="h-3.5 w-3.5" />Call</a>}
-              {hospital.latitude && hospital.longitude && (
-                <a
-                  href={`https://www.openstreetmap.org/directions?from=&to=${hospital.latitude}%2C${hospital.longitude}#map=15/${hospital.latitude}/${hospital.longitude}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-sky-500 px-3 text-xs font-semibold text-white"
-                >
-                  <Navigation className="h-3.5 w-3.5" />Directions <ExternalLink className="h-3 w-3" />
-                </a>
-              )}
-            </div>
-          </Card>
-        ))}
+              {hospital.address && <p className="mt-3 text-xs leading-5 text-ink-2">{hospital.address}</p>}
+              <div className="mt-4 flex flex-wrap gap-2">
+                {hospital.phone && <a href={`tel:${hospital.phone}`} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-rule px-3 text-xs font-semibold text-ink transition-colors hover:bg-surface-alt"><Phone className="h-3.5 w-3.5" />Call</a>}
+                {hospital.latitude && hospital.longitude && (
+                  <a href={`https://www.openstreetmap.org/directions?from=&to=${hospital.latitude}%2C${hospital.longitude}#map=15/${hospital.latitude}/${hospital.longitude}`} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-brand px-3 text-xs font-semibold text-brand-fg transition-colors hover:bg-brand-strong">
+                    <Navigation className="h-3.5 w-3.5" />Directions <ExternalLink className="h-3 w-3" />
+                  </a>
+                )}
+              </div>
+            </Card>
+          );
+        })}
         {!loading && !hospitals.length && !geoError && (
           <Card className="p-8 text-center md:col-span-2 xl:col-span-3">
-            <p className="text-sm font-semibold">No nearby results yet</p>
-            <p className="mt-2 text-xs text-slate-500">Allow location access or widen your search by refreshing.</p>
+            <p className="text-sm font-semibold text-ink">No nearby results yet</p>
+            <p className="mt-2 text-xs text-ink-2">Allow location access or widen your search by refreshing.</p>
           </Card>
         )}
       </div>

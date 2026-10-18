@@ -102,6 +102,8 @@ def create_app() -> FastAPI:
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+        # Expose the pagination/report headers so the cross-origin SPA can read them.
+        expose_headers=["Content-Disposition", "X-Has-More", "X-Oldest-Seq", "X-Report-Id", "X-Request-ID"],
     )
 
     @application.middleware("http")

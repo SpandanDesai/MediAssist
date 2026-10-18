@@ -32,9 +32,7 @@ export function ReportsPage() {
       .finally(() => {
         if (live) setLoading(false);
       });
-    return () => {
-      live = false;
-    };
+    return () => { live = false; };
   }, []);
 
   async function generate(conversationId: string) {
@@ -81,7 +79,6 @@ export function ReportsPage() {
         await navigator.clipboard.writeText(link);
         copied = true;
       } catch {
-        // Clipboard may be unavailable (insecure context); show the link instead.
         window.prompt("Copy this report link:", link);
       }
       showToast({
@@ -97,54 +94,58 @@ export function ReportsPage() {
   }
 
   return (
-    <div className="mx-auto grid max-w-6xl gap-5 lg:grid-cols-2 animate-fade-up">
+    <div className="mx-auto grid max-w-6xl gap-5 lg:grid-cols-2">
       <Card>
         <CardHeader>
           <div>
-            <p className="text-sm font-bold">Generate from a conversation</p>
-            <p className="mt-1 text-xs text-slate-500">Includes symptoms, possible conditions, recommendations, and disclaimer.</p>
+            <p className="text-sm font-bold text-ink">Generate from a conversation</p>
+            <p className="mt-1 text-xs text-ink-2">Includes symptoms, possible conditions, recommendations, and disclaimer.</p>
           </div>
         </CardHeader>
-        <CardContent className="space-y-2">
-          {loading && Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-16" />)}
-          {!loading && !conversations.length && <p className="py-10 text-center text-sm text-slate-500">No conversations available yet.</p>}
-          {conversations.map((conversation) => (
-            <div key={conversation.id} className="flex items-center gap-3 rounded-xl border border-slate-200 p-3 dark:border-slate-800">
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300"><FileText className="h-4 w-4" /></span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold">{conversation.title}</p>
-                <p className="text-[11px] text-slate-500">{displayDate(conversation.updated_at)}</p>
-              </div>
-              <Button size="sm" variant="outline" disabled={generatingId === conversation.id} onClick={() => generate(conversation.id)}>
-                <Download className="h-3.5 w-3.5" />{generatingId === conversation.id ? "…" : "PDF"}
-              </Button>
-            </div>
-          ))}
+        <CardContent>
+          {loading && <div className="space-y-2">{Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-16" />)}</div>}
+          {!loading && !conversations.length && <p className="py-10 text-center text-sm text-ink-2">No conversations available yet.</p>}
+          <ul className="divide-y divide-rule">
+            {conversations.map((conversation) => (
+              <li key={conversation.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-tint text-brand"><FileText className="h-4 w-4" /></span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-ink">{conversation.title}</p>
+                  <p className="text-[11px] text-ink-2">{displayDate(conversation.updated_at)}</p>
+                </div>
+                <Button size="sm" variant="outline" disabled={generatingId === conversation.id} onClick={() => generate(conversation.id)}>
+                  <Download className="h-3.5 w-3.5" />{generatingId === conversation.id ? "…" : "Generate PDF"}
+                </Button>
+              </li>
+            ))}
+          </ul>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
           <div>
-            <p className="text-sm font-bold">Saved reports</p>
-            <p className="mt-1 text-xs text-slate-500">Previously generated educational summaries</p>
+            <p className="text-sm font-bold text-ink">Saved reports</p>
+            <p className="mt-1 text-xs text-ink-2">Previously generated educational summaries</p>
           </div>
         </CardHeader>
-        <CardContent className="space-y-2">
-          {loading && Array.from({ length: 3 }).map((_, index) => <Skeleton key={index} className="h-14" />)}
-          {!loading && !reports.length && <p className="py-10 text-center text-sm text-slate-500">No saved reports yet.</p>}
-          {reports.map((report) => (
-            <div key={report.id} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-3 dark:bg-slate-950/40">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">{report.title}</p>
-                <p className="text-[11px] text-slate-500">{displayDate(report.created_at)}</p>
-              </div>
-              <div className="flex shrink-0 items-center gap-1">
-                <Button size="sm" variant="ghost" title="Create a temporary share link" disabled={sharingId === report.id} onClick={() => createShareLink(report.id)}><Link2 className="h-4 w-4" /></Button>
-                <Button size="sm" variant="ghost" onClick={() => downloadExisting(report.id)}><Download className="h-4 w-4" /></Button>
-              </div>
-            </div>
-          ))}
+        <CardContent>
+          {loading && <div className="space-y-2">{Array.from({ length: 3 }).map((_, index) => <Skeleton key={index} className="h-14" />)}</div>}
+          {!loading && !reports.length && <p className="py-10 text-center text-sm text-ink-2">No saved reports yet.</p>}
+          <ul className="divide-y divide-rule">
+            {reports.map((report) => (
+              <li key={report.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-ink">{report.title}</p>
+                  <p className="text-[11px] text-ink-2">{displayDate(report.created_at)}</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-1">
+                  <Button size="sm" variant="ghost" title="Create a temporary share link" aria-label="Create a temporary share link" disabled={sharingId === report.id} onClick={() => createShareLink(report.id)}><Link2 className="h-4 w-4" /></Button>
+                  <Button size="sm" variant="ghost" aria-label="Download report" onClick={() => downloadExisting(report.id)}><Download className="h-4 w-4" /></Button>
+                </div>
+              </li>
+            ))}
+          </ul>
         </CardContent>
       </Card>
     </div>

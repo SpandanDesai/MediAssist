@@ -9,7 +9,7 @@ import { TypingIndicator } from "../components/TypingIndicator";
 import { useToast } from "../components/Toast";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader } from "../components/ui/card";
-import { Input, Textarea } from "../components/ui/form";
+import { Input, Label, Textarea } from "../components/ui/form";
 import { Skeleton } from "../components/ui/skeleton";
 import { useGeolocation } from "../hooks/useGeolocation";
 import { chatApi, historyApi, medicationApi, reportApi, apiErrorMessage } from "../lib/api";
@@ -64,7 +64,6 @@ export function ChatPage() {
     }
     try {
       const page = await historyApi.messagesPage(id);
-      // Ignore a slower response if the user has since switched conversations.
       if (activeIdRef.current === id) {
         setMessages(page.messages);
         setHasMoreOlder(page.hasMore);
@@ -86,7 +85,6 @@ export function ChatPage() {
     try {
       const page = await historyApi.messagesPage(id, oldestSeq);
       if (activeIdRef.current === id) {
-        // Keep ids stable across pages; prepend older turns.
         const seen = new Set(messages.map((m) => m.id));
         const fresh = page.messages.filter((m) => !seen.has(m.id));
         setMessages((current) => [...fresh, ...current]);
@@ -123,20 +121,10 @@ export function ChatPage() {
       };
       setMessages((current) => [
         ...current,
-        {
-          id: `review-${Date.now()}`,
-          role: "assistant",
-          content: result.response,
-          created_at: new Date().toISOString(),
-          analysis,
-        },
+        { id: `review-${Date.now()}`, role: "assistant", content: result.response, created_at: new Date().toISOString(), analysis },
       ]);
       if (result.emergency) {
-        setEmergencyMeta({
-          category: result.emergency_category,
-          crisisResources: result.crisis_resources,
-          nearestHospitals: result.nearest_hospitals,
-        });
+        setEmergencyMeta({ category: result.emergency_category, crisisResources: result.crisis_resources, nearestHospitals: result.nearest_hospitals });
         setEmergencyOpen(true);
       }
     } catch (error) {
@@ -169,15 +157,9 @@ export function ChatPage() {
           setMessages([]);
         }
       })
-      .catch(() => {
-        if (live) setConversations([]);
-      })
-      .finally(() => {
-        if (live) setLoadingHistory(false);
-      });
-    return () => {
-      live = false;
-    };
+      .catch(() => { if (live) setConversations([]); })
+      .finally(() => { if (live) setLoadingHistory(false); });
+    return () => { live = false; };
   }, []);
 
   useEffect(() => {
@@ -202,9 +184,7 @@ export function ChatPage() {
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return conversations;
-    return conversations.filter(
-      (item) => item.title.toLowerCase().includes(needle) || (item.preview || "").toLowerCase().includes(needle),
-    );
+    return conversations.filter((item) => item.title.toLowerCase().includes(needle) || (item.preview || "").toLowerCase().includes(needle));
   }, [conversations, query]);
 
   function selectConversation(conversation: Conversation) {
@@ -215,7 +195,7 @@ export function ChatPage() {
     void loadMessages(conversation.id);
   }
 
-  async function startNew() {
+  function startNew() {
     activeIdRef.current = undefined;
     setActiveId(undefined);
     setMessages([]);
@@ -261,22 +241,12 @@ export function ChatPage() {
     if (!trimmed || sending) return;
     if (isEmergencyText(trimmed)) setEmergencyOpen(true);
 
-    const optimistic: ChatMessage = {
-      id: `local-${Date.now()}`,
-      role: "user",
-      content: trimmed,
-      created_at: new Date().toISOString(),
-    };
+    const optimistic: ChatMessage = { id: `local-${Date.now()}`, role: "user", content: trimmed, created_at: new Date().toISOString() };
     setMessages((current) => [...current, optimistic]);
     setDraft("");
     setSending(true);
     try {
-      const result = await chatApi.send({
-        message: trimmed,
-        conversation_id: activeId,
-        latitude: latitude ?? undefined,
-        longitude: longitude ?? undefined,
-      });
+      const result = await chatApi.send({ message: trimmed, conversation_id: activeId, latitude: latitude ?? undefined, longitude: longitude ?? undefined });
       const analysis: HealthAnalysis = {
         possible_conditions: result.possible_conditions,
         urgency: result.urgency,
@@ -289,20 +259,10 @@ export function ChatPage() {
         nearest_hospitals: result.nearest_hospitals,
       };
       if (result.emergency) {
-        setEmergencyMeta({
-          category: result.emergency_category,
-          crisisResources: result.crisis_resources,
-          nearestHospitals: result.nearest_hospitals,
-        });
+        setEmergencyMeta({ category: result.emergency_category, crisisResources: result.crisis_resources, nearestHospitals: result.nearest_hospitals });
         setEmergencyOpen(true);
       }
-      const assistant: ChatMessage = {
-        id: `assistant-${Date.now()}`,
-        role: "assistant",
-        content: result.response,
-        created_at: new Date().toISOString(),
-        analysis,
-      };
+      const assistant: ChatMessage = { id: `assistant-${Date.now()}`, role: "assistant", content: result.response, created_at: new Date().toISOString(), analysis };
       setMessages((current) => [...current, assistant]);
       if (result.conversation_id) {
         activeIdRef.current = result.conversation_id;
@@ -325,7 +285,7 @@ export function ChatPage() {
   }
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[280px_minmax(0,1fr)]">
+    <div className="grid gap-5 xl:grid-cols-[300px_minmax(0,1fr)]">
       {emergencyOpen && (
         <EmergencyAlert
           onClose={() => setEmergencyOpen(false)}
@@ -334,129 +294,114 @@ export function ChatPage() {
           nearestHospitals={emergencyMeta.nearestHospitals}
         />
       )}
-      <Card className="h-[calc(100vh-9.5rem)] overflow-hidden">
+      <Card className="flex h-[calc(100vh-8.5rem)] flex-col overflow-hidden">
         <CardHeader>
           <div>
-            <p className="text-sm font-bold">Conversations</p>
-            <p className="mt-1 text-xs text-slate-500">Search or continue a prior chat</p>
+            <p className="text-sm font-bold text-ink">Conversations</p>
+            <p className="mt-1 text-xs text-ink-2">Search or continue a prior chat</p>
           </div>
-          <Button size="sm" variant="outline" onClick={startNew}>New</Button>
+          <Button size="sm" variant="outline" onClick={startNew}>New consultation</Button>
         </CardHeader>
-        <CardContent className="flex h-[calc(100%-4.5rem)] flex-col gap-3">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-            <Input
-              className="pl-9"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search history"
-              aria-label="Search conversation history"
-            />
+        <CardContent className="flex min-h-0 flex-1 flex-col gap-3">
+          <div>
+            <Label htmlFor="chat-search" className="mb-1">Search conversations</Label>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-2" aria-hidden="true" />
+              <Input id="chat-search" className="pl-9" value={query} onChange={(event) => setQuery(event.target.value)} placeholder='Try "sore throat"' />
+            </div>
           </div>
           <div className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
             {loadingHistory ? (
               Array.from({ length: 5 }).map((_, index) => <Skeleton key={index} className="h-14" />)
             ) : filtered.length ? (
               filtered.map((conversation) => (
-                <div key={conversation.id} className={`group flex items-start gap-1 rounded-xl p-1 ${activeId === conversation.id ? "bg-sky-50 dark:bg-sky-950/30" : ""}`}>
-                  <button onClick={() => selectConversation(conversation)} className="min-w-0 flex-1 rounded-lg px-2.5 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800">
-                    <span className="block truncate text-sm font-semibold">{conversation.title}</span>
-                    <span className="mt-0.5 block truncate text-[11px] text-slate-500">{displayDate(conversation.updated_at)}</span>
+                <div key={conversation.id} className={`flex items-start gap-1 rounded-lg p-1 ${activeId === conversation.id ? "bg-brand-tint" : ""}`}>
+                  <button onClick={() => selectConversation(conversation)} className="min-w-0 flex-1 rounded-lg px-2.5 py-2 text-left hover:bg-surface-alt">
+                    <span className={`block truncate text-sm font-semibold ${activeId === conversation.id ? "text-brand" : "text-ink"}`}>{conversation.title}</span>
+                    <span className="mt-0.5 block truncate text-[11px] text-ink-2">{displayDate(conversation.updated_at)}</span>
                   </button>
                   <button
                     onClick={() => removeConversation(conversation.id)}
-                    className="rounded-lg p-2 text-slate-400 opacity-100 transition hover:bg-rose-50 hover:text-rose-600 focus-visible:opacity-100 group-hover:opacity-100 md:opacity-0"
+                    className="mt-1.5 rounded-lg p-2 text-ink-2 transition-colors hover:bg-danger-tint hover:text-danger"
                     aria-label={`Delete conversation ${conversation.title}`}
                   >
-                    <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                    <Trash2 className="h-4 w-4" aria-hidden="true" />
                   </button>
                 </div>
               ))
             ) : (
-              <p className="px-2 py-8 text-center text-xs text-slate-500">No conversations yet.</p>
+              <p className="px-2 py-8 text-center text-xs text-ink-2">No conversations yet.</p>
             )}
           </div>
         </CardContent>
       </Card>
 
-      <Card className="flex h-[calc(100vh-9.5rem)] flex-col overflow-hidden">
+      <Card className="flex h-[calc(100vh-8.5rem)] flex-col overflow-hidden">
         <CardHeader>
           <div>
-            <p className="text-sm font-bold">AI consultation</p>
-            <p className="mt-1 text-xs text-slate-500">Educational guidance with confidence estimates — never a confirmed diagnosis.</p>
+            <p className="text-sm font-bold text-ink">AI consultation</p>
+            <p className="mt-1 text-xs text-ink-2">Educational guidance with confidence where available — never a confirmed diagnosis.</p>
           </div>
           <Button size="sm" variant="outline" onClick={downloadReport} disabled={!activeId}>
-            <FileDown className="h-4 w-4" aria-hidden="true" />PDF
+            <FileDown className="h-4 w-4" aria-hidden="true" />Download summary (PDF)
           </Button>
         </CardHeader>
         <CardContent className="flex min-h-0 flex-1 flex-col gap-4">
-          <div
-            className="min-h-0 flex-1 space-y-4 overflow-y-auto rounded-2xl bg-slate-50/80 p-4 dark:bg-slate-950/40"
-            role="log"
-            aria-live="polite"
-            aria-relevant="additions"
-            aria-label="Conversation messages"
-          >
+          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto rounded-xl bg-canvas p-4" role="log" aria-live="polite" aria-relevant="additions" aria-label="Conversation messages">
             {hasMoreOlder && (
               <div className="flex justify-center pb-1">
-                <Button type="button" size="sm" variant="outline" onClick={() => void loadOlder()} disabled={loadingOlder}>
-                  {loadingOlder ? "Loading\u2026" : "Load older messages"}
-                </Button>
+                <Button type="button" size="sm" variant="ghost" onClick={() => void loadOlder()} disabled={loadingOlder}>{loadingOlder ? "Loading…" : "Load older messages"}</Button>
               </div>
             )}
             {messages.length === 0 && !sending && (
               <div className="mx-auto max-w-lg py-10 text-center">
-                <p className="text-sm font-bold">Describe what you are experiencing</p>
-                <p className="mt-2 text-xs leading-5 text-slate-500">Or tap a starter to begin a guided consultation.</p>
+                <p className="text-sm font-bold text-ink">Describe what you are experiencing</p>
+                <p className="mt-2 text-xs leading-5 text-ink-2">Or tap a starter to begin a guided consultation.</p>
                 <div className="mt-5 flex flex-wrap justify-center gap-2">
                   {STARTER_PROMPTS.map((prompt) => (
-                    <button
-                      key={prompt}
-                      type="button"
-                      onClick={() => void sendMessage(prompt)}
-                      className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-left text-xs font-medium text-slate-700 transition hover:border-sky-300 hover:bg-sky-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-sky-700"
-                    >
+                    <button key={prompt} type="button" onClick={() => void sendMessage(prompt)} className="rounded-full border border-rule bg-surface px-3 py-2 text-left text-xs font-medium text-ink transition-colors hover:border-brand hover:bg-brand-tint hover:text-brand">
                       {prompt}
                     </button>
                   ))}
                 </div>
               </div>
             )}
-            {messages.map((message) => (
-              <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-[90%] rounded-2xl px-4 py-3 ${message.role === "user" ? "rounded-tr-sm bg-sky-500 text-white" : "rounded-tl-sm bg-white shadow-sm dark:bg-slate-900"}`}>
-                  {message.role === "assistant" ? <MarkdownMessage>{message.content}</MarkdownMessage> : <p className="text-sm leading-6">{message.content}</p>}
-                  {message.role === "assistant" && (
-                    <HealthAnalysisCard
-                      analysis={message.analysis}
-                      onFollowUp={(question) => void sendMessage(question)}
-                    />
-                  )}
+            {messages.map((message) =>
+              message.role === "user" ? (
+                <div key={message.id} className="flex justify-end">
+                  <div className="max-w-[85%] rounded-xl rounded-br-sm bg-brand-tint px-4 py-3 text-sm leading-6 text-ink font-read">{message.content}</div>
                 </div>
-              </div>
-            ))}
+              ) : (
+                <div key={message.id} className="max-w-[68ch]">
+                  <MarkdownMessage>{message.content}</MarkdownMessage>
+                  <HealthAnalysisCard analysis={message.analysis} onFollowUp={(question) => void sendMessage(question)} />
+                </div>
+              ),
+            )}
             {sending && <TypingIndicator />}
             <div ref={bottomRef} />
           </div>
           {medicationNotice && <MedicationNotice onReview={runMedicationReview} reviewing={reviewing} />}
-          <form onSubmit={submit} className="flex gap-3">
-            <Textarea
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              placeholder="Share your symptoms…"
-              aria-label="Describe your symptoms"
-              className="min-h-[56px] flex-1"
-              maxLength={8000}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.shiftKey) {
-                  event.preventDefault();
-                  void submit(event as unknown as FormEvent);
-                }
-              }}
-            />
-            <Button type="submit" disabled={sending || !draft.trim()} className="self-end" aria-label="Send message">
-              <Send className="h-4 w-4" aria-hidden="true" />
-            </Button>
+          <form onSubmit={submit}>
+            <Label htmlFor="chat-composer">Describe your symptoms</Label>
+            <div className="flex items-end gap-3">
+              <Textarea
+                id="chat-composer"
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                placeholder="e.g. Fever of 38.5°C since last night, sore throat, no cough…"
+                className="min-h-[56px] flex-1"
+                maxLength={8000}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    void submit(event as unknown as FormEvent);
+                  }
+                }}
+              />
+              <Button type="submit" disabled={sending || !draft.trim()} aria-label="Send message"><Send className="h-4 w-4" aria-hidden="true" />Send</Button>
+            </div>
+            <p className="mt-1.5 text-[11px] text-ink-2">Enter to send · Shift+Enter for a new line · MediAssist never provides dosing advice.</p>
           </form>
         </CardContent>
       </Card>

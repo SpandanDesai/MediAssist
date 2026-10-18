@@ -4,24 +4,41 @@ export default {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
+      colors: {
+        canvas: "rgb(var(--canvas) / <alpha-value>)",
+        surface: "rgb(var(--surface) / <alpha-value>)",
+        "surface-alt": "rgb(var(--surface-alt) / <alpha-value>)",
+        ink: "rgb(var(--ink) / <alpha-value>)",
+        "ink-2": "rgb(var(--ink-2) / <alpha-value>)",
+        rule: "rgb(var(--rule) / <alpha-value>)",
+        brand: "rgb(var(--brand) / <alpha-value>)",
+        "brand-strong": "rgb(var(--brand-strong) / <alpha-value>)",
+        "brand-tint": "rgb(var(--brand-tint) / <alpha-value>)",
+        "brand-fg": "rgb(var(--brand-fg) / <alpha-value>)",
+        danger: "rgb(var(--danger) / <alpha-value>)",
+        "danger-tint": "rgb(var(--danger-tint) / <alpha-value>)",
+        "danger-fg": "rgb(var(--danger-fg) / <alpha-value>)",
+        low: "rgb(var(--low) / <alpha-value>)",
+        "low-tint": "rgb(var(--low-tint) / <alpha-value>)",
+        med: "rgb(var(--med) / <alpha-value>)",
+        "med-tint": "rgb(var(--med-tint) / <alpha-value>)",
+        high: "rgb(var(--high) / <alpha-value>)",
+        "high-tint": "rgb(var(--high-tint) / <alpha-value>)",
+        emergency: "rgb(var(--emergency) / <alpha-value>)",
+        "emergency-tint": "rgb(var(--emergency-tint) / <alpha-value>)",
+      },
+      fontFamily: {
+        ui: ["Manrope", "Segoe UI", "system-ui", "sans-serif"],
+        read: ['"Atkinson Hyperlegible"', "Manrope", "sans-serif"],
+      },
       boxShadow: {
-        soft: "0 16px 45px -22px rgba(15, 23, 42, 0.28)",
-        glow: "0 15px 35px -15px rgba(14, 165, 233, 0.55)",
+        card: "0 1px 2px rgba(15, 37, 49, 0.06)",
+        overlay: "0 10px 28px -18px rgba(13, 33, 48, 0.28)",
       },
       animation: {
-        "fade-up": "fade-up .5s ease-out both",
-        "pulse-soft": "pulse-soft 2.2s ease-in-out infinite",
         waveform: "waveform .9s ease-in-out infinite alternate",
       },
       keyframes: {
-        "fade-up": {
-          "0%": { opacity: "0", transform: "translateY(10px)" },
-          "100%": { opacity: "1", transform: "translateY(0)" },
-        },
-        "pulse-soft": {
-          "0%, 100%": { opacity: "1", transform: "scale(1)" },
-          "50%": { opacity: ".72", transform: "scale(.98)" },
-        },
         waveform: {
           "0%": { transform: "scaleY(.25)" },
           "100%": { transform: "scaleY(1)" },

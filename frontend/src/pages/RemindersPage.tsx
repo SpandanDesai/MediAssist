@@ -35,11 +35,7 @@ export function RemindersPage() {
     if (!trimmed) return;
     setSaving(true);
     try {
-      const created = await remindersApi.create({
-        title: trimmed,
-        notes: notes.trim() || undefined,
-        due_at: dueAt || undefined,
-      });
+      const created = await remindersApi.create({ title: trimmed, notes: notes.trim() || undefined, due_at: dueAt || undefined });
       setReminders((current) => [...current, created]);
       setTitle("");
       setNotes("");
@@ -81,12 +77,12 @@ export function RemindersPage() {
   const completed = reminders.filter((item) => item.done);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 animate-fade-up">
+    <div className="mx-auto max-w-3xl space-y-6">
       <Card>
         <CardHeader>
           <div>
-            <p className="text-sm font-bold">Care reminders</p>
-            <p className="mt-1 text-xs text-slate-500">Track medication refills, follow-ups, and rechecks. Reminders are private to your account.</p>
+            <p className="text-sm font-bold text-ink">Care reminders</p>
+            <p className="mt-1 text-xs text-ink-2">Track medication refills, follow-ups, and rechecks. Reminders are private to your account.</p>
           </div>
         </CardHeader>
         <CardContent>
@@ -115,41 +111,41 @@ export function RemindersPage() {
       <Card>
         <CardHeader>
           <div>
-            <p className="text-sm font-bold">Your reminders</p>
-            <p className="mt-1 text-xs text-slate-500">{pending.length} active · {completed.length} completed</p>
+            <p className="text-sm font-bold text-ink">Your reminders</p>
+            <p className="mt-1 text-xs text-ink-2">{pending.length} active · {completed.length} completed</p>
           </div>
         </CardHeader>
-        <CardContent className="space-y-2">
+        <CardContent>
           {loading ? (
-            Array.from({ length: 3 }).map((_, index) => <Skeleton key={index} className="h-14" />)
+            <div className="space-y-2">{Array.from({ length: 3 }).map((_, index) => <Skeleton key={index} className="h-14" />)}</div>
           ) : reminders.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-200 px-5 py-9 text-center dark:border-slate-700">
-              <BellRing className="mx-auto h-6 w-6 text-sky-500" />
-              <p className="mt-3 text-sm font-semibold">No reminders yet</p>
-              <p className="mt-1 text-xs text-slate-500">Add one above to keep track of your next care step.</p>
+            <div className="py-8 text-center">
+              <BellRing className="mx-auto h-6 w-6 text-ink-2" />
+              <p className="mt-3 text-sm font-semibold text-ink">No reminders yet</p>
+              <p className="mt-1 text-xs text-ink-2">Add one above to keep track of your next care step.</p>
             </div>
           ) : (
-            [...pending, ...completed].map((reminder) => (
-              <div key={reminder.id} className={`flex items-center gap-3 rounded-xl border border-slate-200 p-3 dark:border-slate-800 ${reminder.done ? "opacity-60" : ""}`}>
-                <button
-                  onClick={() => toggle(reminder)}
-                  disabled={busyId === reminder.id}
-                  aria-label={reminder.done ? "Mark as not done" : "Mark as done"}
-                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition ${reminder.done ? "border-emerald-300 bg-emerald-50 text-emerald-600 dark:border-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300" : "border-slate-300 text-transparent hover:border-sky-400 dark:border-slate-700"}`}
-                >
-                  <Check className="h-4 w-4" />
-                </button>
-                <div className="min-w-0 flex-1">
-                  <p className={`truncate text-sm font-semibold ${reminder.done ? "line-through" : ""}`}>{reminder.title}</p>
-                  <p className="text-[11px] text-slate-500">
-                    {reminder.due_at ? `Due ${displayDate(reminder.due_at)} · ` : ""}{reminder.notes || "No notes"}
-                  </p>
-                </div>
-                <button onClick={() => remove(reminder.id)} disabled={busyId === reminder.id} className="rounded-lg p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30" aria-label={`Delete reminder ${reminder.title}`}>
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-            ))
+            <ul className="divide-y divide-rule">
+              {[...pending, ...completed].map((reminder) => (
+                <li key={reminder.id} className={`flex items-center gap-3 py-3 first:pt-0 last:pb-0 ${reminder.done ? "opacity-60" : ""}`}>
+                  <button
+                    onClick={() => toggle(reminder)}
+                    disabled={busyId === reminder.id}
+                    aria-label={reminder.done ? "Mark as not done" : "Mark as done"}
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-colors ${reminder.done ? "border-low bg-low-tint text-low" : "border-rule text-transparent hover:border-brand"}`}
+                  >
+                    <Check className="h-4 w-4" />
+                  </button>
+                  <div className="min-w-0 flex-1">
+                    <p className={`truncate text-sm font-semibold text-ink ${reminder.done ? "line-through" : ""}`}>{reminder.title}</p>
+                    <p className="text-[11px] text-ink-2">{reminder.due_at ? `Due ${displayDate(reminder.due_at)} · ` : ""}{reminder.notes || "No notes"}</p>
+                  </div>
+                  <button onClick={() => remove(reminder.id)} disabled={busyId === reminder.id} className="rounded-lg p-2 text-ink-2 transition-colors hover:bg-danger-tint hover:text-danger" aria-label={`Delete reminder ${reminder.title}`}>
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </li>
+              ))}
+            </ul>
           )}
         </CardContent>
       </Card>

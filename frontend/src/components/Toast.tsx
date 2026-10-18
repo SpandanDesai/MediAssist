@@ -9,6 +9,8 @@ interface ToastContextValue { showToast: (toast: Omit<Toast, "id">) => void }
 const ToastContext = createContext<ToastContextValue | null>(null);
 
 const iconByTone = { success: CheckCircle2, error: XCircle, info: Info };
+const borderByTone = { success: "border-low/30", error: "border-danger/30", info: "border-brand/30" };
+const iconColorByTone = { success: "text-low", error: "text-danger", info: "text-brand" };
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -26,10 +28,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         {toasts.map((toast) => {
           const Icon = iconByTone[toast.tone];
           return (
-            <div key={toast.id} className={cn("pointer-events-auto flex gap-3 rounded-2xl border bg-white p-4 shadow-xl dark:bg-slate-900", toast.tone === "error" ? "border-rose-200 dark:border-rose-900" : toast.tone === "success" ? "border-emerald-200 dark:border-emerald-900" : "border-sky-200 dark:border-sky-900")}>
-              <Icon className={cn("mt-0.5 h-5 w-5 shrink-0", toast.tone === "error" ? "text-rose-500" : toast.tone === "success" ? "text-emerald-500" : "text-sky-500")} />
-              <div className="min-w-0 flex-1"><p className="text-sm font-semibold text-slate-900 dark:text-white">{toast.title}</p>{toast.message && <p className="mt-0.5 text-xs leading-5 text-slate-500 dark:text-slate-400">{toast.message}</p>}</div>
-              <button onClick={() => setToasts((current) => current.filter((item) => item.id !== toast.id))} className="text-slate-400 hover:text-slate-700 dark:hover:text-white" aria-label="Dismiss notification"><X className="h-4 w-4" /></button>
+            <div key={toast.id} className={cn("pointer-events-auto flex gap-3 rounded-xl border bg-surface p-4 shadow-overlay", borderByTone[toast.tone])}>
+              <Icon className={cn("mt-0.5 h-5 w-5 shrink-0", iconColorByTone[toast.tone])} />
+              <div className="min-w-0 flex-1"><p className="text-sm font-semibold text-ink">{toast.title}</p>{toast.message && <p className="mt-0.5 text-[13px] leading-5 text-ink-2">{toast.message}</p>}</div>
+              <button onClick={() => setToasts((current) => current.filter((item) => item.id !== toast.id))} className="text-ink-2 hover:text-ink" aria-label="Dismiss notification"><X className="h-4 w-4" /></button>
             </div>
           );
         })}

@@ -1,7 +1,7 @@
 import { cn } from "../../lib/utils";
 
 export function Card({ className, children }: React.HTMLAttributes<HTMLDivElement>) {
-  return <section className={cn("rounded-2xl border border-slate-200/80 bg-white shadow-soft dark:border-slate-800 dark:bg-slate-900", className)}>{children}</section>;
+  return <section className={cn("rounded-2xl border border-rule bg-surface shadow-card", className)}>{children}</section>;
 }
 
 export function CardHeader({ className, children }: React.HTMLAttributes<HTMLDivElement>) {
