@@ -6,6 +6,9 @@ import type {
   HealthStats,
   Hospital,
   ImageAnalysis,
+  ObesityAllFeaturesInput,
+  ObesityLifestyleInput,
+  ObesityPredictionResult,
   Reminder,
   User,
   VoiceResponse,
@@ -430,6 +433,17 @@ export const assessmentApi = {
   },
 };
 
+export const mlAssessmentApi = {
+  async predictLifestyle(payload: ObesityLifestyleInput): Promise<ObesityPredictionResult> {
+    const response = await api.post<ObesityPredictionResult>("/api/ml/predict", payload);
+    return response.data;
+  },
+  async predictAllFeatures(payload: ObesityAllFeaturesInput): Promise<ObesityPredictionResult> {
+    const response = await api.post<ObesityPredictionResult>("/api/ml/predict-all", payload);
+    return response.data;
+  },
+};
+
 export const statsApi = {
   async get(window = 100): Promise<HealthStats> {
     const response = await api.get<HealthStats>("/api/stats", { params: { window } });
@@ -494,4 +508,3 @@ export const remindersApi = {
 };
 
 export { baseURL };
-
