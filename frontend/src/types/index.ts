@@ -149,3 +149,35 @@ export interface ApiErrorShape {
   detail?: string;
   message?: string;
 }
+
+
+export interface ObesityLifestyleInput {
+  Gender: "Female" | "Male";
+  Age: number;
+  family_history_with_overweight: "yes" | "no";
+  FAVC: "yes" | "no";
+  FCVC: number;
+  NCP: number;
+  CAEC: "no" | "Sometimes" | "Frequently" | "Always";
+  SMOKE: "yes" | "no";
+  CH2O: number;
+  SCC: "yes" | "no";
+  FAF: number;
+  TUE: number;
+  CALC: "no" | "Sometimes" | "Frequently" | "Always";
+  MTRANS: "Automobile" | "Motorbike" | "Bike" | "Public_Transportation" | "Walking";
+}
+
+export interface ObesityAllFeaturesInput extends ObesityLifestyleInput {
+  Height: number;
+  Weight: number;
+}
+
+export interface ObesityPredictionResult {
+  predicted_category: string;
+  category_label: string;
+  model: string;
+  class_probabilities?: Record<string, number>;
+  disclaimer: string;
+  recommendations: string[];
+}

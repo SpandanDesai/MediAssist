@@ -26,6 +26,7 @@ from app.routes import (
     image,
     medication,
     metrics,
+    ml_assessment,
     profile,
     reminders,
     reports,
@@ -154,6 +155,7 @@ def create_app() -> FastAPI:
     application.include_router(stats.router, prefix=prefix)
     application.include_router(reminders.router, prefix=prefix)
     application.include_router(metrics.router, prefix=prefix)
+    application.include_router(ml_assessment.router, prefix=prefix)
 
     @application.get("/")
     async def root() -> dict[str, str]:

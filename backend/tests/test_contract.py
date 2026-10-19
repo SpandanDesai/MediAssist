@@ -2,10 +2,10 @@
 
 Two goals:
 
-1. OpenAPI contract — every (verb, path) the frontend calls in
+1. OpenAPI contract â€” every (verb, path) the frontend calls in
    ``frontend/src/lib/api.ts`` must be present in the generated schema, so a
    backend rename/removal fails loudly here rather than silently in the browser.
-2. Behaviour hardening — the new endpoints and resilience primitives actually
+2. Behaviour hardening â€” the new endpoints and resilience primitives actually
    work: message pagination headers, ``/reminders/upcoming`` date filtering,
    share-link revocation, the PHI-free ``/metrics`` snapshot, CORS preflight for
    PATCH, and the memory store's range operators.
@@ -88,6 +88,8 @@ FRONTEND_CONTRACT: list[tuple[str, str]] = [
     ("patch", "/api/reminders/{reminder_id}"),
     ("delete", "/api/reminders/{reminder_id}"),
     ("get", "/api/metrics"),
+    ("post", "/api/ml/predict"),
+    ("post", "/api/ml/predict-all"),
 ]
 
 
@@ -140,7 +142,7 @@ def test_metrics_snapshot_is_phi_free(client: TestClient):
     body = response.json()
     assert body["enabled"] is True
     assert body["storage"] == "memory"
-    # Only aggregate counters — never names/emails/health content.
+    # Only aggregate counters â€” never names/emails/health content.
     assert "http_requests_total" in body["counters"]
     dumped = str(body).lower()
     for leak in ("email", "password", "symptom", "authorization"):
