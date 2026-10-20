@@ -67,6 +67,7 @@ async def delete_account(user: CurrentUser) -> dict[str, str]:
     await database.delete_many("images", {"user_id": user_id})
     await database.delete_many("assessments", {"user_id": user_id})
     await database.delete_many("reminders", {"user_id": user_id})
+    await database.delete_many("vitals", {"user_id": user_id})
     await database.delete_one("users", {"_id": user["_id"]})
     return {"status": "deleted", "message": "Account and all associated health data have been permanently deleted."}
 
@@ -88,6 +89,7 @@ async def export_data(user: CurrentUser) -> dict:
     )
     images = await database.find_many("images", {"user_id": user_id}, sort=[("created_at", -1)], limit=500)
     reminders = await database.find_many("reminders", {"user_id": user_id}, limit=500)
+    vitals = await database.find_many("vitals", {"user_id": user_id}, sort=[("recorded_at", -1)], limit=500)
 
     def _iso(value: object) -> str:
         return value.isoformat() if hasattr(value, "isoformat") else str(value or "")
@@ -152,5 +154,17 @@ async def export_data(user: CurrentUser) -> dict:
                 "created_at": _iso(rem.get("created_at")),
             }
             for rem in reminders
+        ],
+        "vitals": [
+            {
+                "id": str(v["_id"]),
+                "kind": v.get("kind"),
+                "value": v.get("value"),
+                "unit": v.get("unit"),
+                "note": v.get("note"),
+                "recorded_at": _iso(v.get("recorded_at")),
+                "created_at": _iso(v.get("created_at")),
+            }
+            for v in vitals
         ],
     }

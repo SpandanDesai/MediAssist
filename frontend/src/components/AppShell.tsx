@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BotMessageSquare, BellRing, FileText, HeartPulse, Home, ImagePlus, LogOut, MapPinned, Menu, Moon, Phone, Settings, ShieldCheck, Sun, UserRound, X } from "lucide-react";
+import { BotMessageSquare, BellRing, FileText, HeartPulse, Home, ImagePlus, LogOut, MapPinned, Menu, Moon, Phone, Settings, ShieldCheck, Sun, UserRound, Activity, X } from "lucide-react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useTheme } from "../contexts/ThemeContext";
@@ -12,6 +12,7 @@ const navigation = [
   { to: "/image-analysis", label: "Image analysis", icon: ImagePlus },
   { to: "/hospitals", label: "Nearby care", icon: MapPinned },
   { to: "/assessment", label: "Health check-in", icon: ShieldCheck },
+  { to: "/vitals", label: "Vitals", icon: Activity },
   { to: "/reminders", label: "Reminders", icon: BellRing },
   { to: "/reports", label: "Reports", icon: FileText },
 ];
@@ -28,6 +29,7 @@ const titleMap: Record<string, string> = {
   "/image-analysis": "Image analysis",
   "/hospitals": "Nearby care",
   "/assessment": "Health check-in",
+  "/vitals": "Vitals tracker",
   "/reminders": "Care reminders",
   "/reports": "Medical reports",
   "/profile": "Your profile",

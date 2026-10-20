@@ -6,6 +6,7 @@ import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader } from "../components/ui/card";
 import { Input, Label, Select } from "../components/ui/form";
 import { apiErrorMessage, assessmentApi, mlAssessmentApi } from "../lib/api";
+import { DiabetesQuestionnaire } from "../components/DiabetesQuestionnaire";
 import { displayDate } from "../lib/utils";
 import type { AssessmentResult, ObesityAllFeaturesInput, ObesityLifestyleInput, ObesityPredictionResult } from "../types";
 
@@ -20,7 +21,7 @@ const fields = [
 
 type FormState = Record<(typeof fields)[number]["key"], string>;
 
-type AssessmentMode = "rules" | "ml";
+type AssessmentMode = "rules" | "ml" | "diabetes";
 type ModelMode = "lifestyle" | "all-features";
 type SelectOption = readonly [value: string, label: string];
 
@@ -207,6 +208,15 @@ export function AssessmentPage() {
         >
           ML lifestyle classifier
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === "diabetes"}
+          onClick={() => setMode("diabetes")}
+          className={`rounded-lg border px-4 py-2.5 text-sm font-semibold transition-colors ${mode === "diabetes" ? "border-brand bg-brand-tint text-brand" : "border-rule bg-surface text-ink-2 hover:bg-surface-alt"}`}
+        >
+          Diabetes ML (experimental)
+        </button>
       </div>
 
       {mode === "rules" ? (
@@ -309,7 +319,7 @@ export function AssessmentPage() {
         </CardContent>
       </Card>
       </div>
-      ) : (
+      ) : mode === "ml" ? (
       <div className="grid gap-5 lg:grid-cols-[1.1fr_.9fr]">
         <Card>
           <CardHeader>
@@ -462,6 +472,8 @@ export function AssessmentPage() {
           </CardContent>
         </Card>
       </div>
+      ) : (
+        <DiabetesQuestionnaire />
       )}
     </div>
   );

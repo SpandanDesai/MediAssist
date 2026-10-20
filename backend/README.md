@@ -19,6 +19,16 @@ uvicorn app.main:app --reload --port 8000
 OpenAPI documentation is available at `http://localhost:8000/docs`; a health
 check is available at `GET /api/health`.
 
+> **ML tests need Python 3.12 (or 3.11), not 3.14.** The obesity joblib artifacts
+> under `app/ml/` are pickled with scikit-learn **1.6.1** (`requirements.txt` pins
+> `scikit-learn==1.6.1`), and joblib/pickle artifacts are version-coupled — loading
+> them under a newer scikit-learn raises `AttributeError: ... _RemainderColsList`
+> and fails `test_ml_lifestyle_predict_success` / `test_ml_all_features_predict_success`.
+> scikit-learn 1.6.1 has no wheels for Python 3.13+, so on a 3.14 machine create a
+> 3.12/3.11 venv for the suite, e.g. `py -3.11 -m venv .venv311` then
+> `.\.venv311\Scripts\python -m pip install -r requirements.txt`. CI pins Python 3.12
+> and enforces the version (see `.github/workflows/ci.yml`).
+
 ## Configuration
 
 `MONGODB_URI` and `GEMINI_API_KEY` are optional for local development. When

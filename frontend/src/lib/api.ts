@@ -3,6 +3,8 @@ import type {
   ChatMessage,
   ChatResponse,
   Conversation,
+  DiabetesInput,
+  DiabetesPredictionResult,
   HealthStats,
   Hospital,
   ImageAnalysis,
@@ -11,6 +13,8 @@ import type {
   ObesityPredictionResult,
   Reminder,
   User,
+  Vital,
+  VitalKind,
   VoiceResponse,
 } from "../types";
 
@@ -444,6 +448,13 @@ export const mlAssessmentApi = {
   },
 };
 
+export const mlDiabetesApi = {
+  async predict(payload: DiabetesInput): Promise<DiabetesPredictionResult> {
+    const response = await api.post<DiabetesPredictionResult>("/api/ml/diabetes/predict", payload);
+    return response.data;
+  },
+};
+
 export const statsApi = {
   async get(window = 100): Promise<HealthStats> {
     const response = await api.get<HealthStats>("/api/stats", { params: { window } });
@@ -504,6 +515,36 @@ export const remindersApi = {
   },
   async remove(id: string) {
     await api.delete(`/api/reminders/${encodeURIComponent(id)}`);
+  },
+};
+
+function normalizeVital(item: Record<string, unknown>): Vital {
+  return {
+    id: String(item.id || item._id || ""),
+    kind: String(item.kind || "weight_kg") as VitalKind,
+    value: Number(item.value || 0),
+    unit: String(item.unit || ""),
+    note: typeof item.note === "string" ? item.note : null,
+    recorded_at: String(item.recorded_at || new Date().toISOString()),
+    created_at: String(item.created_at || new Date().toISOString()),
+  };
+}
+
+export const vitalsApi = {
+  async list(kind?: VitalKind): Promise<Vital[]> {
+    const response = await api.get<unknown>("/api/vitals", { params: kind ? { kind } : undefined });
+    const raw = unwrap(response.data) as unknown;
+    const list = Array.isArray(raw) ? raw : [];
+    return list
+      .filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object"))
+      .map(normalizeVital);
+  },
+  async create(payload: { kind: VitalKind; value: number; note?: string; recorded_at?: string }): Promise<Vital> {
+    const response = await api.post<Record<string, unknown>>("/api/vitals", payload);
+    return normalizeVital(response.data);
+  },
+  async remove(id: string) {
+    await api.delete(`/api/vitals/${encodeURIComponent(id)}`);
   },
 };
 

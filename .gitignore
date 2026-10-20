@@ -11,6 +11,7 @@ frontend/.vite/
 
 # Python environments, caches, and test output
 backend/.venv/
+backend/.venv*/
 backend/venv/
 backend/env/
 **/__pycache__/
@@ -27,6 +28,11 @@ backend/uploads/
 backend/reports/
 backend/.data/
 mongo-data/
+
+# Large ML artifacts (GitHub blocks files >100MB). The ~283MB CDC diabetes
+# RandomForest is restored out-of-band; see backend/app/ml/README.md. Its small
+# diabetes_metadata.json IS committed so the model contract/version stays in repo.
+backend/app/ml/diabetes/cdc_diabetes_rf.joblib
 
 # Editor and operating-system files
 .vscode/

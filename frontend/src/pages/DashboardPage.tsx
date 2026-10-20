@@ -1,20 +1,21 @@
 import { useEffect, useState } from "react";
-import { ArrowRight, BellRing, BotMessageSquare, FileText, HeartPulse, ImagePlus, MapPinned, Mic, Plus, ShieldCheck, TrendingUp } from "lucide-react";
+import { ArrowRight, BellRing, BotMessageSquare, FileText, HeartPulse, ImagePlus, MapPinned, Mic, Plus, ShieldCheck, TrendingUp, Activity } from "lucide-react";
 import { Link } from "react-router-dom";
 import { EmergencyInlineNotice } from "../components/EmergencyAlert";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader } from "../components/ui/card";
 import { Skeleton } from "../components/ui/skeleton";
 import { useAuth } from "../contexts/AuthContext";
-import { assessmentApi, historyApi, remindersApi, statsApi } from "../lib/api";
+import { assessmentApi, historyApi, remindersApi, statsApi, vitalsApi } from "../lib/api";
 import { displayDate } from "../lib/utils";
-import type { AssessmentResult, Conversation, HealthStats, Reminder } from "../types";
+import type { AssessmentResult, Conversation, HealthStats, Reminder, Vital } from "../types";
 
 const careTools = [
   { to: "/chat", icon: BotMessageSquare, title: "Start a text consultation", copy: "Describe symptoms and get cautious next-step guidance." },
   { to: "/voice", icon: Mic, title: "Talk it through", copy: "Record a voice consultation when typing is not ideal." },
   { to: "/image-analysis", icon: ImagePlus, title: "Analyze an image", copy: "Share a visible skin or minor-wound concern safely." },
   { to: "/assessment", icon: ShieldCheck, title: "Health check-in", copy: "Score habits, track trend, and jump into a guided chat." },
+  { to: "/vitals", icon: Activity, title: "Track your vitals", copy: "Log weight, blood pressure, glucose, and more to watch a trend." },
 ];
 
 const healthTips = [
@@ -160,12 +161,50 @@ function HealthTrends({ stats: data }: { stats: HealthStats }) {
   );
 }
 
+const vitalLabels: Record<string, string> = {
+  weight_kg: "Weight", height_cm: "Height", systolic_bp: "Systolic BP", diastolic_bp: "Diastolic BP",
+  resting_hr: "Resting HR", temperature_c: "Temperature", spo2_pct: "Oxygen", glucose_mgdl: "Glucose", bmi: "BMI",
+};
+
+function VitalsSnapshot({ vitals }: { vitals: Vital[] }) {
+  // Most recent reading per kind, newest-first list deduplicated by kind.
+  const latestByKind = new Map<string, Vital>();
+  for (const vital of vitals) {
+    if (!latestByKind.has(vital.kind)) latestByKind.set(vital.kind, vital);
+  }
+  const entries = [...latestByKind.values()];
+  if (entries.length === 0) return null;
+  return (
+    <Card>
+      <CardHeader>
+        <div>
+          <p className="text-sm font-bold text-ink">Latest vitals</p>
+          <p className="mt-1 text-xs text-ink-2">Your most recent logged readings.</p>
+        </div>
+        <Link to="/vitals" className="inline-flex items-center gap-1 text-xs font-bold text-brand hover:text-brand-strong">Track <ArrowRight className="h-3.5 w-3.5" /></Link>
+      </CardHeader>
+      <CardContent>
+        <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {entries.map((vital) => (
+            <div key={vital.kind} className="rounded-xl border border-rule bg-surface-alt px-3.5 py-3">
+              <dt className="text-[11px] font-medium text-ink-2">{vitalLabels[vital.kind] || vital.kind}</dt>
+              <dd className="mt-0.5 text-lg font-bold tabular-nums text-ink">{vital.value}<span className="ml-1 text-xs font-medium text-ink-2">{vital.unit}</span></dd>
+              <dd className="mt-0.5 text-[11px] text-ink-2">{displayDate(vital.recorded_at)}</dd>
+            </div>
+          ))}
+        </dl>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function DashboardPage() {
   const { user } = useAuth();
   const [recent, setRecent] = useState<Conversation[]>([]);
   const [latestAssessment, setLatestAssessment] = useState<AssessmentResult | null>(null);
   const [statsData, setStats] = useState<HealthStats | null>(null);
   const [upcoming, setUpcoming] = useState<Reminder[]>([]);
+  const [latestVitals, setLatestVitals] = useState<Vital[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -175,12 +214,14 @@ export function DashboardPage() {
       assessmentApi.history().catch(() => [] as AssessmentResult[]),
       statsApi.get().catch(() => null),
       remindersApi.upcoming(7).catch(() => [] as Reminder[]),
-    ]).then(([items, assessments, statsResult, due]) => {
+      vitalsApi.list().catch(() => [] as Vital[]),
+    ]).then(([items, assessments, statsResult, due, vitals]) => {
       if (!live) return;
       setRecent(items.slice(0, 4));
       setLatestAssessment(assessments[0] || null);
       setStats(statsResult);
       setUpcoming(due);
+      setLatestVitals(vitals);
     }).finally(() => { if (live) setLoading(false); });
     return () => { live = false; };
   }, []);
@@ -206,6 +247,7 @@ export function DashboardPage() {
 
       <EmergencyInlineNotice />
       {statsData && <HealthTrends stats={statsData} />}
+      {latestVitals.length > 0 && <VitalsSnapshot vitals={latestVitals} />}
 
       {upcoming.length > 0 && (
         <Card>

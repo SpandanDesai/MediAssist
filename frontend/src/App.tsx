@@ -14,6 +14,7 @@ import { ProfilePage } from "./pages/ProfilePage";
 import { RemindersPage } from "./pages/RemindersPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { VitalsPage } from "./pages/VitalsPage";
 import { VoicePage } from "./pages/VoicePage";
 
 function ProtectedRoute() {
@@ -54,6 +55,7 @@ export default function App() {
           <Route path="/image-analysis" element={<ImageAnalysisPage />} />
           <Route path="/hospitals" element={<HospitalsPage />} />
           <Route path="/assessment" element={<AssessmentPage />} />
+          <Route path="/vitals" element={<VitalsPage />} />
           <Route path="/reminders" element={<RemindersPage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/profile" element={<ProfilePage />} />

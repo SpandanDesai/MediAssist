@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { FileDown, Search, Send, Trash2 } from "lucide-react";
+import { FileDown, Search, Send, Trash2, Archive, ArchiveRestore, Tags, Save, X, Check } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { EmergencyAlert } from "../components/EmergencyAlert";
 import { HealthAnalysisCard } from "../components/HealthAnalysisCard";
@@ -48,6 +48,10 @@ export function ChatPage() {
   const [oldestSeq, setOldestSeq] = useState<number | undefined>(undefined);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [reviewing, setReviewing] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  const [editingTagsId, setEditingTagsId] = useState<string | null>(null);
+  const [tagDraft, setTagDraft] = useState("");
+  const [busyConvId, setBusyConvId] = useState<string | null>(null);
 
   async function refreshHistory() {
     const items = await historyApi.list();
@@ -183,9 +187,52 @@ export function ChatPage() {
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    if (!needle) return conversations;
-    return conversations.filter((item) => item.title.toLowerCase().includes(needle) || (item.preview || "").toLowerCase().includes(needle));
-  }, [conversations, query]);
+    return conversations.filter((item) => {
+      if (item.archived && !showArchived) return false;
+      if (!needle) return true;
+      const haystack = [item.title, item.preview || "", ...(item.tags || [])].join(" ").toLowerCase();
+      return haystack.includes(needle);
+    });
+  }, [conversations, query, showArchived]);
+
+  const archivedCount = useMemo(() => conversations.filter((item) => item.archived).length, [conversations]);
+
+  function patchConversation(id: string, next: Conversation) {
+    setConversations((current) => current.map((item) => (item.id === id ? next : item)));
+  }
+
+  async function toggleArchive(conversation: Conversation) {
+    setBusyConvId(conversation.id);
+    try {
+      const updated = await historyApi.update(conversation.id, { archived: !conversation.archived });
+      patchConversation(conversation.id, { ...conversation, ...updated, archived: !conversation.archived });
+      showToast({ tone: "success", title: conversation.archived ? "Conversation restored" : "Conversation archived" });
+    } catch (error) {
+      showToast({ tone: "error", title: "Could not update conversation", message: apiErrorMessage(error) });
+    } finally {
+      setBusyConvId(null);
+    }
+  }
+
+  function startEditTags(conversation: Conversation) {
+    setEditingTagsId(conversation.id);
+    setTagDraft((conversation.tags || []).join(", "));
+  }
+
+  async function saveTags(conversation: Conversation) {
+    const tags = tagDraft.split(",").map((tag) => tag.trim()).filter(Boolean).slice(0, 25);
+    setBusyConvId(conversation.id);
+    try {
+      const updated = await historyApi.update(conversation.id, { tags });
+      patchConversation(conversation.id, { ...conversation, ...updated, tags });
+      setEditingTagsId(null);
+      showToast({ tone: "success", title: "Tags saved" });
+    } catch (error) {
+      showToast({ tone: "error", title: "Could not save tags", message: apiErrorMessage(error) });
+    } finally {
+      setBusyConvId(null);
+    }
+  }
 
   function selectConversation(conversation: Conversation) {
     activeIdRef.current = conversation.id;
@@ -310,23 +357,79 @@ export function ChatPage() {
               <Input id="chat-search" className="pl-9" value={query} onChange={(event) => setQuery(event.target.value)} placeholder='Try "sore throat"' />
             </div>
           </div>
+          {archivedCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowArchived((current) => !current)}
+              className="flex items-center gap-1.5 text-[11px] font-medium text-ink-2 transition-colors hover:text-ink"
+            >
+              <span className={`inline-flex h-3.5 w-3.5 items-center justify-center rounded border ${showArchived ? "border-brand bg-brand-tint text-brand" : "border-rule text-transparent"}`}>
+                <Check className="h-2.5 w-2.5" aria-hidden="true" />
+              </span>
+              Show {archivedCount} archived
+            </button>
+          )}
           <div className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
             {loadingHistory ? (
               Array.from({ length: 5 }).map((_, index) => <Skeleton key={index} className="h-14" />)
             ) : filtered.length ? (
               filtered.map((conversation) => (
-                <div key={conversation.id} className={`flex items-start gap-1 rounded-lg p-1 ${activeId === conversation.id ? "bg-brand-tint" : ""}`}>
-                  <button onClick={() => selectConversation(conversation)} className="min-w-0 flex-1 rounded-lg px-2.5 py-2 text-left hover:bg-surface-alt">
-                    <span className={`block truncate text-sm font-semibold ${activeId === conversation.id ? "text-brand" : "text-ink"}`}>{conversation.title}</span>
-                    <span className="mt-0.5 block truncate text-[11px] text-ink-2">{displayDate(conversation.updated_at)}</span>
-                  </button>
-                  <button
-                    onClick={() => removeConversation(conversation.id)}
-                    className="mt-1.5 rounded-lg p-2 text-ink-2 transition-colors hover:bg-danger-tint hover:text-danger"
-                    aria-label={`Delete conversation ${conversation.title}`}
-                  >
-                    <Trash2 className="h-4 w-4" aria-hidden="true" />
-                  </button>
+                <div key={conversation.id} className={`rounded-lg p-1 ${activeId === conversation.id ? "bg-brand-tint" : ""}`}>
+                  <div className="flex items-start gap-1">
+                    <button onClick={() => selectConversation(conversation)} className="min-w-0 flex-1 rounded-lg px-2.5 py-2 text-left hover:bg-surface-alt">
+                      <span className={`block truncate text-sm font-semibold ${activeId === conversation.id ? "text-brand" : "text-ink"} ${conversation.archived ? "opacity-70" : ""}`}>{conversation.title}</span>
+                      <span className="mt-0.5 block truncate text-[11px] text-ink-2">{displayDate(conversation.updated_at)}{conversation.archived ? " · archived" : ""}</span>
+                      {conversation.tags && conversation.tags.length > 0 && (
+                        <span className="mt-1 flex flex-wrap gap-1">
+                          {conversation.tags.map((tag) => (
+                            <span key={tag} className="rounded-full bg-surface-alt px-1.5 py-0.5 text-[10px] font-medium text-ink-2">{tag}</span>
+                          ))}
+                        </span>
+                      )}
+                    </button>
+                    <div className="mt-1 flex shrink-0 items-center gap-0.5">
+                      <button
+                        onClick={() => toggleArchive(conversation)}
+                        disabled={busyConvId === conversation.id}
+                        className="rounded-lg p-1.5 text-ink-2 transition-colors hover:bg-surface-alt hover:text-ink"
+                        aria-label={conversation.archived ? `Restore conversation ${conversation.title}` : `Archive conversation ${conversation.title}`}
+                        title={conversation.archived ? "Restore" : "Archive"}
+                      >
+                        {conversation.archived ? <ArchiveRestore className="h-4 w-4" aria-hidden="true" /> : <Archive className="h-4 w-4" aria-hidden="true" />}
+                      </button>
+                      <button
+                        onClick={() => startEditTags(conversation)}
+                        disabled={busyConvId === conversation.id}
+                        className="rounded-lg p-1.5 text-ink-2 transition-colors hover:bg-surface-alt hover:text-ink"
+                        aria-label={`Edit tags for conversation ${conversation.title}`}
+                        title="Edit tags"
+                      >
+                        <Tags className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                      <button
+                        onClick={() => removeConversation(conversation.id)}
+                        disabled={busyConvId === conversation.id}
+                        className="rounded-lg p-1.5 text-ink-2 transition-colors hover:bg-danger-tint hover:text-danger"
+                        aria-label={`Delete conversation ${conversation.title}`}
+                      >
+                        <Trash2 className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                    </div>
+                  </div>
+                  {editingTagsId === conversation.id && (
+                    <div className="mt-1 flex items-center gap-1 px-1 pb-1">
+                      <Input
+                        value={tagDraft}
+                        onChange={(event) => setTagDraft(event.target.value)}
+                        placeholder="tag1, tag2"
+                        aria-label="Tags, comma separated"
+                        className="h-8 text-xs"
+                        onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void saveTags(conversation); } }}
+                      />
+                      <button onClick={() => void saveTags(conversation)} disabled={busyConvId === conversation.id} className="rounded-lg p-1.5 text-low hover:bg-low-tint" aria-label="Save tags"><Save className="h-4 w-4" aria-hidden="true" /></button>
+                      <button onClick={() => setEditingTagsId(null)} className="rounded-lg p-1.5 text-ink-2 hover:bg-surface-alt" aria-label="Cancel tagging"><X className="h-4 w-4" aria-hidden="true" /></button>
+                    </div>
+                  )}
                 </div>
               ))
             ) : (

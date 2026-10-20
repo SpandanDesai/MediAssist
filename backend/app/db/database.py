@@ -80,6 +80,7 @@ class Database:
         # Data retention TTL: expire temporary image metadata after 90 days (7776000 seconds)
         await self.database.images.create_index("created_at", expireAfterSeconds=7776000)
         await self.database.reminders.create_index([("user_id", 1), ("created_at", 1)])
+        await self.database.vitals.create_index([("user_id", 1), ("recorded_at", -1)])
 
     async def insert_one(self, collection: str, document: Document) -> Document:
         stored = deepcopy(document)

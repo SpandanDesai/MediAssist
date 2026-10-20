@@ -88,8 +88,12 @@ FRONTEND_CONTRACT: list[tuple[str, str]] = [
     ("patch", "/api/reminders/{reminder_id}"),
     ("delete", "/api/reminders/{reminder_id}"),
     ("get", "/api/metrics"),
+    ("get", "/api/vitals"),
+    ("post", "/api/vitals"),
+    ("delete", "/api/vitals/{vital_id}"),
     ("post", "/api/ml/predict"),
     ("post", "/api/ml/predict-all"),
+    ("post", "/api/ml/diabetes/predict"),
 ]
 
 
@@ -128,6 +132,17 @@ def test_cors_preflight_allows_patch_and_request_id(client: TestClient):
 def test_request_id_echoed_on_response(client: TestClient):
     response = client.get("/api/health", headers={"X-Request-ID": "trace-abc-123"})
     assert response.headers.get("X-Request-ID") == "trace-abc-123"
+
+
+def test_security_headers_present(client: TestClient):
+    """Defense-in-depth headers attach to every response (dev mode: no HSTS)."""
+    response = client.get("/api/health")
+    assert response.headers.get("X-Content-Type-Options") == "nosniff"
+    assert response.headers.get("X-Frame-Options") == "DENY"
+    assert response.headers.get("Referrer-Policy") == "no-referrer"
+    assert "camera=()" in response.headers.get("Permissions-Policy", "")
+    # HSTS is only emitted when running in production (TLS-terminating).
+    assert "Strict-Transport-Security" not in response.headers
 
 
 # --------------------------------------------------------------------------- #

@@ -25,6 +25,27 @@ export interface Reminder {
   created_at: string;
 }
 
+export type VitalKind =
+  | "weight_kg"
+  | "height_cm"
+  | "systolic_bp"
+  | "diastolic_bp"
+  | "resting_hr"
+  | "temperature_c"
+  | "spo2_pct"
+  | "glucose_mgdl"
+  | "bmi";
+
+export interface Vital {
+  id: string;
+  kind: VitalKind;
+  value: number;
+  unit: string;
+  note?: string | null;
+  recorded_at: string;
+  created_at: string;
+}
+
 export interface RiskTrendPoint {
   created_at: string;
   risk_score: number;
@@ -180,4 +201,40 @@ export interface ObesityPredictionResult {
   class_probabilities?: Record<string, number>;
   disclaimer: string;
   recommendations: string[];
+}
+
+// Encoded inputs for the experimental CDC diabetes survey classifier.
+// NOTE: values use the dataset's numeric encodings (Age is a 1-13 band, not
+// years; GenHlth is 1-5; Sex/Education/Income are coded), NOT raw user input.
+export interface DiabetesInput {
+  HighBP: number;
+  HighChol: number;
+  CholCheck: number;
+  BMI: number;
+  Smoker: number;
+  Stroke: number;
+  HeartDiseaseorAttack: number;
+  PhysActivity: number;
+  Fruits: number;
+  Veggies: number;
+  HvyAlcoholConsump: number;
+  AnyHealthcare: number;
+  NoDocbcCost: number;
+  GenHlth: number;
+  MentHlth: number;
+  PhysHlth: number;
+  DiffWalk: number;
+  Sex: number;
+  Age: number;
+  Education: number;
+  Income: number;
+}
+
+export interface DiabetesPredictionResult {
+  model: string;
+  prediction: number;
+  label: string;
+  decision_threshold: number;
+  model_score: number;
+  notice: string;
 }

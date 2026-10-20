@@ -27,10 +27,12 @@ from app.routes import (
     medication,
     metrics,
     ml_assessment,
+    ml_diabetes,
     profile,
     reminders,
     reports,
     stats,
+    vitals,
     voice,
 )
 from app.services import metrics as metrics_service
@@ -108,6 +110,28 @@ def create_app() -> FastAPI:
     )
 
     @application.middleware("http")
+    async def security_headers(request: Request, call_next):
+        """Attach conservative defense-in-depth headers to every response.
+
+        These complement (never replace) the explicit CORS middleware: browsers
+        refuse MIME-sniffing, framing, and over-broad referrer leakage even when
+        a proxy misconfigures CORS. HSTS is only emitted in production, where the
+        app is expected to terminate TLS.
+        """
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "no-referrer")
+        response.headers.setdefault(
+            "Permissions-Policy", "camera=(), microphone=(), geolocation=(self)"
+        )
+        if settings.is_production:
+            response.headers.setdefault(
+                "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+            )
+        return response
+
+    @application.middleware("http")
     async def request_context(request: Request, call_next):
         """Attach a request id for log correlation and record traffic/latency metrics."""
         request_id = request.headers.get("X-Request-ID") or uuid4().hex
@@ -156,6 +180,8 @@ def create_app() -> FastAPI:
     application.include_router(reminders.router, prefix=prefix)
     application.include_router(metrics.router, prefix=prefix)
     application.include_router(ml_assessment.router, prefix=prefix)
+    application.include_router(ml_diabetes.router, prefix=prefix)
+    application.include_router(vitals.router, prefix=prefix)
 
     @application.get("/")
     async def root() -> dict[str, str]:

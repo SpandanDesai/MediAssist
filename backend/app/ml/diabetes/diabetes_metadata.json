@@ -1,0 +1,49 @@
+{
+  "model_name": "cdc_diabetes_random_forest",
+  "dataset": "UCI CDC Diabetes Health Indicators",
+  "dataset_id": 891,
+  "target": "Diabetes_binary",
+  "target_labels": {
+    "0": "No diabetes label in the survey",
+    "1": "Prediabetes or diabetes label in the survey"
+  },
+  "features": [
+    "HighBP",
+    "HighChol",
+    "CholCheck",
+    "BMI",
+    "Smoker",
+    "Stroke",
+    "HeartDiseaseorAttack",
+    "PhysActivity",
+    "Fruits",
+    "Veggies",
+    "HvyAlcoholConsump",
+    "AnyHealthcare",
+    "NoDocbcCost",
+    "GenHlth",
+    "MentHlth",
+    "PhysHlth",
+    "DiffWalk",
+    "Sex",
+    "Age",
+    "Education",
+    "Income"
+  ],
+  "decision_threshold": 0.5,
+  "random_state": 42,
+  "test_size_fraction": 0.15,
+  "metrics": {
+    "accuracy": 0.7848470514033428,
+    "balanced_accuracy": 0.7324251369928099,
+    "roc_auc": 0.8250643023948906,
+    "average_precision": 0.4180271029180125,
+    "positive_recall": 0.6597510373443983,
+    "positive_precision": 0.35401275174577473
+  },
+  "limitations": [
+    "US survey data; may not generalize to Indian users",
+    "Survey-derived target, not a clinical diagnosis",
+    "Model score is not a validated clinical probability"
+  ]
+}

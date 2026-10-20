@@ -17,7 +17,13 @@ from app.db.database import database
 
 
 async def _count(user_id: str, conversation_id: str) -> int:
-    rows = await database.find_many("messages", {"user_id": user_id, "conversation_id": conversation_id}, limit=1000)
+    # Bound the scan above the largest allowed per-conversation cap so a legacy
+    # backfill never undercounts seq/stored_count when max_conversation_messages
+    # is raised toward its ceiling (the old hardcoded 1000 could truncate below it).
+    scan_limit = max(get_settings().max_conversation_messages, 2000) + 100
+    rows = await database.find_many(
+        "messages", {"user_id": user_id, "conversation_id": conversation_id}, limit=scan_limit
+    )
     return len(rows)
 
 
