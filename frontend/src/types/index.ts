@@ -155,6 +155,12 @@ export interface Hospital {
   is_open?: boolean;
 }
 
+export interface HospitalSearchResult {
+  hospitals: Hospital[];
+  source: "openstreetmap" | "unavailable" | string;
+  message?: string;
+}
+
 export interface AssessmentResult {
   id?: string;
   risk_score: number;

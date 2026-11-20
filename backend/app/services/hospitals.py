@@ -55,33 +55,14 @@ def _address(tags: dict[str, Any]) -> str | None:
     return joined or tags.get("addr:full")
 
 
-def _fallback_hospitals(lat: float, lng: float) -> HospitalListResponse:
-    """Deterministic nearby placeholders used when Overpass is unreachable."""
-    offsets = [
-        (0.012, 0.008, "City General Hospital", "Hospital"),
-        (-0.009, 0.015, "Community Care Clinic", "Clinic"),
-        (0.006, -0.011, "Urgent Care Center", "Emergency"),
-        (-0.015, -0.006, "Family Health Clinic", "Clinic"),
-        (0.018, -0.004, "Regional Medical Center", "Hospital"),
-    ]
-    hospitals: list[HospitalOut] = []
-    for index, (dlat, dlng, name, kind) in enumerate(offsets):
-        plat, plng = lat + dlat, lng + dlng
-        hospitals.append(
-            HospitalOut(
-                id=f"local-{index}",
-                name=name,
-                type=kind,
-                distance=round(_haversine_km(lat, lng, plat, plng), 2),
-                address="Approximate location near you (offline fallback)",
-                phone=None,
-                latitude=plat,
-                longitude=plng,
-                is_open=None,
-            )
-        )
-    hospitals.sort(key=lambda item: item.distance or 999)
-    return HospitalListResponse(hospitals=hospitals, source="fallback")
+def _unavailable_result() -> HospitalListResponse:
+    """Do not present invented facilities as nearby medical care."""
+
+    return HospitalListResponse(
+        hospitals=[],
+        source="unavailable",
+        message="Live nearby-care results are temporarily unavailable. Please try again shortly.",
+    )
 
 
 async def find_nearby_hospitals(lat: float, lng: float, radius: int = 5000) -> HospitalListResponse:
@@ -93,9 +74,10 @@ async def find_nearby_hospitals(lat: float, lng: float, radius: int = 5000) -> H
     if cached and now - cached[0] < settings.hospital_cache_ttl_seconds:
         return cached[1]
 
-    # Circuit open from a recent failure -> serve the deterministic fallback quickly.
+    # Circuit open from a recent failure -> avoid repeatedly burdening the
+    # public provider while giving the client a truthful status.
     if now < _circuit_open_until:
-        return _fallback_hospitals(lat, lng)
+        return _unavailable_result()
 
     query = f"""
     [out:json][timeout:25];
@@ -104,25 +86,28 @@ async def find_nearby_hospitals(lat: float, lng: float, radius: int = 5000) -> H
       way["amenity"="hospital"](around:{radius},{lat},{lng});
       node["amenity"="clinic"](around:{radius},{lat},{lng});
       way["amenity"="clinic"](around:{radius},{lat},{lng});
+      relation["amenity"="hospital"](around:{radius},{lat},{lng});
+      relation["amenity"="clinic"](around:{radius},{lat},{lng});
       node["healthcare"~"hospital|clinic|centre|center|urgent_care"](around:{radius},{lat},{lng});
       way["healthcare"~"hospital|clinic|centre|center|urgent_care"](around:{radius},{lat},{lng});
+      relation["healthcare"~"hospital|clinic|centre|center|urgent_care"](around:{radius},{lat},{lng});
       node["emergency"="yes"](around:{radius},{lat},{lng});
     );
     out center tags 40;
     """
 
     try:
-        async with httpx.AsyncClient(timeout=settings.overpass_timeout_seconds) as client:
+        async with httpx.AsyncClient(
+            timeout=settings.overpass_timeout_seconds,
+            headers={"User-Agent": "MediAssist/1.1 nearby-care lookup"},
+        ) as client:
             response = await client.post(settings.overpass_url, data={"data": query})
             response.raise_for_status()
             payload = response.json()
     except Exception as exc:
         logger.warning("Overpass lookup failed: %s", exc)
         _circuit_open_until = time.time() + settings.overpass_circuit_cooldown_seconds
-        result = _fallback_hospitals(lat, lng)
-        # Do not cache a failure long; the TTL still applies so retries stay cheap.
-        _cache[cache_key] = (now, result)
-        return result
+        return _unavailable_result()
 
     hospitals: list[HospitalOut] = []
     for element in payload.get("elements") or []:
@@ -162,6 +147,10 @@ async def find_nearby_hospitals(lat: float, lng: float, radius: int = 5000) -> H
         unique.append(hospital)
     result = HospitalListResponse(hospitals=unique[:25], source="openstreetmap")
     if not result.hospitals:
-        result = _fallback_hospitals(lat, lng)
+        result = HospitalListResponse(
+            hospitals=[],
+            source="openstreetmap",
+            message="No mapped hospitals or clinics were found within this search area.",
+        )
     _cache[cache_key] = (now, result)
     return result

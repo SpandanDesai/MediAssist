@@ -7,6 +7,7 @@ import type {
   DiabetesPredictionResult,
   HealthStats,
   Hospital,
+  HospitalSearchResult,
   ImageAnalysis,
   ObesityAllFeaturesInput,
   ObesityLifestyleInput,
@@ -333,11 +334,12 @@ export const voiceApi = {
 };
 
 export const hospitalApi = {
-  async nearby(latitude: number, longitude: number) {
+  async nearby(latitude: number, longitude: number): Promise<HospitalSearchResult> {
     const response = await api.get<unknown>("/api/hospitals", { params: { lat: latitude, lng: longitude } });
     const raw = unwrap(response.data) as unknown;
-    const list = Array.isArray(raw) ? raw : (raw as { hospitals?: unknown[] })?.hospitals || [];
-    return list.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object")).map((item) => ({
+    const envelope = Array.isArray(raw) ? undefined : raw as { hospitals?: unknown[]; source?: unknown; message?: unknown };
+    const list = Array.isArray(raw) ? raw : envelope?.hospitals || [];
+    const hospitals = list.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object")).map((item) => ({
       id: item.id ? String(item.id) : undefined,
       name: String(item.name || "Nearby healthcare facility"),
       type: typeof item.type === "string" ? item.type : typeof item.category === "string" ? item.category : undefined,
@@ -348,6 +350,11 @@ export const hospitalApi = {
       longitude: Number(item.longitude ?? item.lng) || undefined,
       is_open: typeof item.is_open === "boolean" ? item.is_open : undefined,
     })) as Hospital[];
+    return {
+      hospitals,
+      source: typeof envelope?.source === "string" ? envelope.source : "openstreetmap",
+      message: typeof envelope?.message === "string" ? envelope.message : undefined,
+    };
   },
 };
 

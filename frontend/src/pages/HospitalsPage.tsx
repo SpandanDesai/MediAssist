@@ -19,19 +19,17 @@ function osmEmbed(lat: number, lng: number, hospitals: Hospital[]) {
   return `https://www.openstreetmap.org/export/embed.html?bbox=${minLon}%2C${minLat}%2C${maxLon}%2C${maxLat}&layer=mapnik&marker=${markers}`;
 }
 
-function isFallback(hospital: Hospital) {
-  return (hospital.address || "").toLowerCase().includes("offline fallback");
-}
-
 export function HospitalsPage() {
   const { showToast } = useToast();
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [hospitals, setHospitals] = useState<Hospital[]>([]);
   const [loading, setLoading] = useState(false);
   const [geoError, setGeoError] = useState("");
+  const [directoryMessage, setDirectoryMessage] = useState("");
 
   function locate() {
     setGeoError("");
+    setDirectoryMessage("");
     if (!navigator.geolocation) {
       setGeoError("Geolocation is not supported in this browser.");
       return;
@@ -43,9 +41,10 @@ export function HospitalsPage() {
         const lng = position.coords.longitude;
         setCoords({ lat, lng });
         try {
-          const results = await hospitalApi.nearby(lat, lng);
-          setHospitals(results);
-          if (!results.length) showToast({ tone: "info", title: "No facilities found nearby" });
+          const result = await hospitalApi.nearby(lat, lng);
+          setHospitals(result.hospitals);
+          setDirectoryMessage(result.message || "");
+          if (!result.hospitals.length) showToast({ tone: "info", title: result.source === "unavailable" ? "Nearby-care directory unavailable" : "No facilities found nearby" });
         } catch (error) {
           showToast({ tone: "error", title: "Hospital lookup failed", message: apiErrorMessage(error) });
         } finally {
@@ -64,8 +63,6 @@ export function HospitalsPage() {
     locate();
   }, []);
 
-  const showingFallback = hospitals.some(isFallback);
-
   return (
     <div className="space-y-5">
       <Card>
@@ -78,10 +75,10 @@ export function HospitalsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           {geoError && <div className="rounded-xl border border-med/30 bg-med-tint px-4 py-3 text-sm text-ink font-read">{geoError}</div>}
-          {showingFallback && (
+          {directoryMessage && (
             <div className="flex items-start gap-2.5 rounded-xl border border-med/30 bg-med-tint px-4 py-3 text-sm text-ink font-read">
               <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-med" />
-              <p><strong className="text-med">Showing approximate offline results — not verified.</strong> These are stand-in facilities, not confirmed care near you. Refresh for live OpenStreetMap data.</p>
+              <p>{directoryMessage}</p>
             </div>
           )}
           {coords ? (

@@ -20,3 +20,4 @@ class HospitalOut(BaseModel):
 class HospitalListResponse(BaseModel):
     hospitals: list[HospitalOut] = Field(default_factory=list)
     source: str = "openstreetmap"
+    message: str | None = None
