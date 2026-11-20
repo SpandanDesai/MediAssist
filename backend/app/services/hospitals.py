@@ -96,16 +96,29 @@ async def find_nearby_hospitals(lat: float, lng: float, radius: int = 5000) -> H
     out center tags 40;
     """
 
-    try:
-        async with httpx.AsyncClient(
-            timeout=settings.overpass_timeout_seconds,
-            headers={"User-Agent": "MediAssist/1.1 nearby-care lookup"},
-        ) as client:
-            response = await client.post(settings.overpass_url, data={"data": query})
-            response.raise_for_status()
-            payload = response.json()
-    except Exception as exc:
-        logger.warning("Overpass lookup failed: %s", exc)
+    payload: dict[str, Any] | None = None
+    failures: list[str] = []
+    # Public instances sometimes throttle or go offline. Try the configured
+    # backup only after the primary fails; both receive the same location query.
+    endpoint_timeout = min(settings.overpass_timeout_seconds, 8.0)
+    async with httpx.AsyncClient(
+        timeout=endpoint_timeout,
+        headers={"User-Agent": "MediAssist/1.1 nearby-care lookup"},
+    ) as client:
+        for endpoint in settings.overpass_endpoints:
+            try:
+                response = await client.post(endpoint, data={"data": query})
+                response.raise_for_status()
+                candidate = response.json()
+                if isinstance(candidate, dict):
+                    payload = candidate
+                    break
+                failures.append(f"{endpoint}: invalid payload")
+            except (httpx.HTTPError, ValueError) as exc:
+                failures.append(f"{endpoint}: {type(exc).__name__}")
+
+    if payload is None:
+        logger.warning("Overpass lookup failed across all endpoints: %s", "; ".join(failures))
         _circuit_open_until = time.time() + settings.overpass_circuit_cooldown_seconds
         return _unavailable_result()
 

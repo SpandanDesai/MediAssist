@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     openai_tts_voice: str = "alloy"
 
     overpass_url: str = "https://overpass-api.de/api/interpreter"
+    # Backup public Overpass endpoint, used only if the primary is unavailable.
+    # Both receive the same coordinate-based query and require no API key.
+    overpass_fallback_urls: str = "https://overpass.private.coffee/api/interpreter"
     max_upload_size_bytes: int = Field(default=10 * 1024 * 1024, ge=1024 * 1024, le=25 * 1024 * 1024)
     hospital_cache_ttl_seconds: int = Field(default=300, ge=30, le=3600)
 
@@ -94,6 +97,17 @@ class Settings(BaseSettings):
         """Return a trimmed list, allowing production deployments to set one env var."""
 
         return [origin.strip().rstrip("/") for origin in self.frontend_origins.split(",") if origin.strip()]
+
+    @property
+    def overpass_endpoints(self) -> list[str]:
+        """Configured Overpass interpreter endpoints, de-duplicated in priority order."""
+
+        endpoints: list[str] = []
+        for value in (self.overpass_url, *self.overpass_fallback_urls.split(",")):
+            endpoint = value.strip()
+            if endpoint and endpoint not in endpoints:
+                endpoints.append(endpoint)
+        return endpoints
 
     @property
     def is_production(self) -> bool:

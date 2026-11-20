@@ -99,6 +99,7 @@ GEMINI_TTS_VOICE=Kore
 SECRET_KEY=your_long_random_secret
 FRONTEND_ORIGINS=http://localhost:5173
 METRICS_API_KEY=long_random_operator_secret
+OVERPASS_FALLBACK_URLS=https://overpass.private.coffee/api/interpreter
 ```
 
 > `GEMINI_API_KEY` and `MONGODB_URI` are optional for local development. When
@@ -107,6 +108,8 @@ METRICS_API_KEY=long_random_operator_secret
 > run immediately. Configure real services before production.
 > In production, `METRICS_API_KEY` is required whenever the operational
 > `/api/metrics` endpoint is enabled; send it in the `X-Metrics-Key` header.
+> Nearby Care uses the primary Overpass service first and, only when it fails,
+> the configured fallback service. Both receive the same coordinate lookup.
 
 ## Frontend (`frontend/.env`)
 
