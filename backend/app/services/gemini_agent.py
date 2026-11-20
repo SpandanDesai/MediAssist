@@ -10,6 +10,7 @@ import asyncio
 import base64
 import json
 import logging
+import random
 import re
 import ssl
 from typing import Any
@@ -47,11 +48,8 @@ def ssl_verify() -> ssl.SSLContext | bool:
 _ssl_verify = ssl_verify
 
 PRIORITY_MODELS = (
-    "gemini-flash-latest",
-    "gemini-2.5-flash",
-    "gemini-2.0-flash",
-    "gemini-1.5-flash",
-    "gemini-1.5-pro",
+    "gemini-3.8-flash",
+    "gemini-3.5-flash-lite",
 )
 
 SKIP_MODEL_TOKENS = (
@@ -63,8 +61,16 @@ SKIP_MODEL_TOKENS = (
     "aqa",
     "robotics",
     "computer-use",
+    "gemini-flash-latest",
+    "gemini-2.5-flash",
     "gemini-2.5-pro-preview",
 )
+
+
+def _retry_delay(attempt: int) -> float:
+    """Return exponential backoff with bounded positive jitter (2s, 4s, 8s...)."""
+    delay = 2.0**attempt
+    return delay + random.uniform(0.0, min(delay * 0.25, 2.0))
 
 # Homie-style voice + MediAssist JSON contract the UI already expects.
 SYSTEM_INSTRUCTION = """
@@ -139,7 +145,7 @@ class GeminiMedicalAgent:
 
     async def _discover_models(self) -> None:
         if not self.configured:
-            self.available_models = ["models/gemini-1.5-flash", "models/gemini-2.0-flash"]
+            self.available_models = ["models/gemini-3.8-flash", "models/gemini-3.5-flash-lite"]
             self._initialized = True
             return
 
@@ -193,9 +199,8 @@ class GeminiMedicalAgent:
         except Exception as exc:
             logger.warning("Gemini model discovery failed: %s", type(exc).__name__)
             self.available_models = [
-                "models/gemini-flash-latest",
-                "models/gemini-2.5-flash",
-                "models/gemini-2.0-flash",
+                "models/gemini-3.8-flash",
+                "models/gemini-3.5-flash-lite",
             ]
         self._initialized = True
 
@@ -310,7 +315,7 @@ class GeminiMedicalAgent:
                     if status_code in _TRANSIENT_STATUS and attempt < max_retries:
                         attempt += 1
                         increment("gemini_retry_total")
-                        await asyncio.sleep(min(2.0 ** attempt * 0.25, 2.0))
+                        await asyncio.sleep(_retry_delay(attempt))
                         continue
                     if status_code in _TRANSIENT_STATUS:
                         # Exhausted retries: let the caller fail over to the next model.
@@ -320,7 +325,7 @@ class GeminiMedicalAgent:
                 if attempt < max_retries:
                     attempt += 1
                     increment("gemini_retry_total")
-                    await asyncio.sleep(min(2.0 ** attempt * 0.25, 2.0))
+                    await asyncio.sleep(_retry_delay(attempt))
                     continue
                 raise
 

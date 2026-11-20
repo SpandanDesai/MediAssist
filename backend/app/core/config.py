@@ -57,7 +57,7 @@ class Settings(BaseSettings):
     # so a slow provider can never make a consultation hang across every candidate model.
     gemini_request_timeout_seconds: float = Field(default=45.0, ge=5.0, le=180.0)
     gemini_overall_timeout_seconds: float = Field(default=110.0, ge=10.0, le=600.0)
-    gemini_max_retries: int = Field(default=2, ge=0, le=5)
+    gemini_max_retries: int = Field(default=3, ge=0, le=5)
     # Overpass is best-effort for emergency facility lookups; keep it quick and back off
     # from a recently-failing endpoint instead of paying the full timeout every time.
     overpass_timeout_seconds: float = Field(default=12.0, ge=3.0, le=60.0)

@@ -360,7 +360,8 @@ npm run build     # production build
 - **Structured JSON logs** with a per-request `X-Request-ID` (echoed on every
   response and propagated to log lines for correlation).
 - **Bounded Gemini calls** — per-request timeout plus an overall failover deadline,
-  with transient-only retries (408/425/429/5xx) and terminal-error short-circuit.
+  with transient-only retries (408/425/429/5xx), exponential backoff with jitter,
+  and terminal-error short-circuit.
 - **Overpass circuit breaker** — nearby-hospital lookups back off from a recently
   failing endpoint and fall back to a curated list.
 - **`/metrics`** — aggregate, PHI-free counters (traffic, 5xx, slow requests,
@@ -370,7 +371,7 @@ npm run build     # production build
   ```env
   GEMINI_REQUEST_TIMEOUT_SECONDS=45
   GEMINI_OVERALL_TIMEOUT_SECONDS=110
-  GEMINI_MAX_RETRIES=2
+  GEMINI_MAX_RETRIES=3
   OVERPASS_TIMEOUT_SECONDS=12
   OVERPASS_CIRCUIT_COOLDOWN_SECONDS=60
   ENABLE_METRICS=true
