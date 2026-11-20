@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
@@ -41,6 +42,7 @@ from app.services import metrics as metrics_service
 request_id_ctx: ContextVar[str] = ContextVar("request_id", default="-")
 
 logger = logging.getLogger("mediassist")
+_SAFE_REQUEST_ID = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 
 
 class _RequestIdFilter(logging.Filter):
@@ -134,7 +136,8 @@ def create_app() -> FastAPI:
     @application.middleware("http")
     async def request_context(request: Request, call_next):
         """Attach a request id for log correlation and record traffic/latency metrics."""
-        request_id = request.headers.get("X-Request-ID") or uuid4().hex
+        supplied_request_id = request.headers.get("X-Request-ID", "")
+        request_id = supplied_request_id if _SAFE_REQUEST_ID.fullmatch(supplied_request_id) else uuid4().hex
         token = request_id_ctx.set(request_id)
         start = time.perf_counter()
         try:

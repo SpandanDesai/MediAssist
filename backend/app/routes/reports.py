@@ -185,7 +185,9 @@ async def create_share_link(report_id: str, user: CurrentUser) -> dict[str, obje
                 "revoked": False,
                 "access_count": 0,
                 "last_accessed": None,
-                "expires_at": payload.get("exp"),
+                # MongoDB TTL indexes require a BSON datetime, not the JWT's
+                # numeric Unix timestamp.
+                "expires_at": datetime.fromtimestamp(int(payload["exp"]), UTC),
                 "created_at": datetime.now(UTC),
             },
         )

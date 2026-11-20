@@ -134,6 +134,13 @@ def test_request_id_echoed_on_response(client: TestClient):
     assert response.headers.get("X-Request-ID") == "trace-abc-123"
 
 
+def test_invalid_request_id_is_replaced(client: TestClient):
+    response = client.get("/api/health", headers={"X-Request-ID": "invalid request id"})
+    request_id = response.headers.get("X-Request-ID", "")
+    assert request_id != "invalid request id"
+    assert len(request_id) == 32
+
+
 def test_security_headers_present(client: TestClient):
     """Defense-in-depth headers attach to every response (dev mode: no HSTS)."""
     response = client.get("/api/health")
@@ -162,6 +169,14 @@ def test_metrics_snapshot_is_phi_free(client: TestClient):
     dumped = str(body).lower()
     for leak in ("email", "password", "symptom", "authorization"):
         assert leak not in dumped
+
+
+def test_metrics_can_require_operator_key(client: TestClient, monkeypatch: pytest.MonkeyPatch):
+    from app.core.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "metrics_api_key", "operator-secret")
+    assert client.get("/api/metrics").status_code == 401
+    assert client.get("/api/metrics", headers={"X-Metrics-Key": "operator-secret"}).status_code == 200
 
 
 # --------------------------------------------------------------------------- #

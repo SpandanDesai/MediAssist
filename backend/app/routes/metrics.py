@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Header, HTTPException, status
 
 from app.core.config import get_settings
 from app.db.database import database
@@ -12,7 +12,7 @@ router = APIRouter(tags=["metrics"])
 
 
 @router.get("/metrics")
-async def metrics() -> dict[str, object]:
+async def metrics(x_metrics_key: str | None = Header(default=None)) -> dict[str, object]:
     """Return process counters plus runtime flags.
 
     Contains no user data — only aggregate operational counts. Disabled when
@@ -21,6 +21,8 @@ async def metrics() -> dict[str, object]:
     settings = get_settings()
     if not settings.enable_metrics:
         return {"enabled": False}
+    if settings.metrics_api_key and x_metrics_key != settings.metrics_api_key:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Metrics authentication required.")
     data = metrics_service.snapshot()
     return {
         "enabled": True,

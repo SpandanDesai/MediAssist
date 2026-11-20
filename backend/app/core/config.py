@@ -78,11 +78,15 @@ class Settings(BaseSettings):
     # Expose an aggregate, PHI-free ``/metrics`` counter snapshot for operators.
     # Only non-sensitive counts (requests, latency buckets, fallbacks) are emitted.
     enable_metrics: bool = True
+    # In production this protects the operator-only metrics endpoint.
+    metrics_api_key: str | None = None
 
     @model_validator(mode="after")
     def _guard_production(self) -> "Settings":
         if self.is_production and self.secret_key.startswith("development-only"):
             raise ValueError("SECRET_KEY must be set in production.")
+        if self.is_production and self.enable_metrics and not self.metrics_api_key:
+            raise ValueError("METRICS_API_KEY must be set when metrics are enabled in production.")
         return self
 
     @property

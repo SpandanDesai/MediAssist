@@ -75,6 +75,9 @@ class Database:
         await self.database.reports.create_index([("user_id", 1), ("created_at", -1)])
         await self.database.report_shares.create_index("jti", unique=True)
         await self.database.report_shares.create_index([("report_id", 1), ("user_id", 1)])
+        # Share records contain audit metadata only, but still expire alongside
+        # their signed link so revocation/audit data does not accumulate forever.
+        await self.database.report_shares.create_index("expires_at", expireAfterSeconds=0)
         await self.database.assessments.create_index([("user_id", 1), ("created_at", -1)])
         await self.database.images.create_index([("user_id", 1), ("created_at", -1)])
         # Data retention TTL: expire temporary image metadata after 90 days (7776000 seconds)
