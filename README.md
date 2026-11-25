@@ -99,7 +99,7 @@ GEMINI_TTS_VOICE=Kore
 SECRET_KEY=your_long_random_secret
 FRONTEND_ORIGINS=http://localhost:5173
 METRICS_API_KEY=long_random_operator_secret
-OVERPASS_FALLBACK_URLS=https://overpass.private.coffee/api/interpreter
+OVERPASS_FALLBACK_URLS=https://overpass.private.coffee/api/interpreter,https://maps.mail.ru/osm/tools/overpass/api/interpreter
 ```
 
 > `GEMINI_API_KEY` and `MONGODB_URI` are optional for local development. When

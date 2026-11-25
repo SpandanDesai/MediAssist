@@ -51,7 +51,10 @@ class Settings(BaseSettings):
     overpass_url: str = "https://overpass-api.de/api/interpreter"
     # Backup public Overpass endpoint, used only if the primary is unavailable.
     # Both receive the same coordinate-based query and require no API key.
-    overpass_fallback_urls: str = "https://overpass.private.coffee/api/interpreter"
+    overpass_fallback_urls: str = (
+        "https://overpass.private.coffee/api/interpreter,"
+        "https://maps.mail.ru/osm/tools/overpass/api/interpreter"
+    )
     max_upload_size_bytes: int = Field(default=10 * 1024 * 1024, ge=1024 * 1024, le=25 * 1024 * 1024)
     hospital_cache_ttl_seconds: int = Field(default=300, ge=30, le=3600)
 
